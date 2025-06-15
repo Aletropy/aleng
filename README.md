@@ -8,11 +8,15 @@ Feel free to contribute or just play with it.
 
 1. Install the required dependencies
 
-    ```yay -S cmake gcc ninja glfw```
+    ```
+    yay -S cmake gcc ninja glfw
+    ```
 
 2. Clone the repository
 
-    ```git clone https://github.com/Aletropy/aleng```
+    ```
+    git clone https://github.com/Aletropy/aleng
+    ```
 
 3. Build and run the project
 

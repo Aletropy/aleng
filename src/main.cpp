@@ -27,10 +27,13 @@ int main()
         {
             auto parser = Aleng::Parser(ss.str());
             auto ast = parser.Parse();
-            ast->Print(std::cout);
-            std::cout << std::endl;
 
-            std::cout << ast->Accept(visitor) << std::endl;
+            auto result = ast->Accept(visitor);
+
+            if (auto p = std::get_if<double>(&result))
+                std::cout << *p << std::endl;
+            else if (auto p = std::get_if<std::string>(&result))
+                std::cout << *p << std::endl;
         }
         catch (std::runtime_error err)
         {

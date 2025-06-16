@@ -1,5 +1,7 @@
 #include "Lexer.h"
 
+#include <iostream>
+
 namespace Aleng
 {
     Lexer::Lexer(const std::string &input)
@@ -74,6 +76,7 @@ namespace Aleng
 
             if (m_Input[m_Index] != '"')
             {
+                throw std::runtime_error("Expected string termination.");
                 return {TokenType::UNKNOWN, c};
             }
 

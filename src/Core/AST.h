@@ -3,6 +3,7 @@
 #include <string>
 #include <iostream>
 #include <memory>
+#include <variant>
 #include "Tokens.h"
 
 namespace Aleng
@@ -15,7 +16,7 @@ namespace Aleng
 {
     std::ostream &operator<<(std::ostream &os, const ASTNode &node);
 
-    using EvaluatedValue = double;
+    using EvaluatedValue = std::variant<double, std::string>;
     class Visitor;
 
     struct ASTNode

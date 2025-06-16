@@ -20,6 +20,6 @@ namespace Aleng
 
     EvaluatedValue StringNode::Accept(Visitor &visitor) const
     {
-        return 0.0;
+        return visitor.Visit(*this);
     }
 }

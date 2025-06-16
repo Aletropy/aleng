@@ -11,6 +11,13 @@ namespace Aleng
 
         EvaluatedValue Visit(const IntegerNode &node);
         EvaluatedValue Visit(const FloatNode &node);
+        EvaluatedValue Visit(const StringNode &node);
         EvaluatedValue Visit(const BinaryExpressionNode &node);
+    };
+
+    template <class... Ts>
+    struct overloads : Ts...
+    {
+        using Ts::operator()...;
     };
 }

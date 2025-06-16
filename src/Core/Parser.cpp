@@ -10,12 +10,99 @@ namespace Aleng
         m_Index = 0;
     }
 
-    NodePtr Parser::Parse()
+    std::unique_ptr<ProgramNode> Parser::ParseProgram()
     {
-        return Expression();
+        auto program = std::make_unique<ProgramNode>();
+
+        while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END_OF_FILE)
+        {
+            program->Statements.push_back(Statement());
+        }
+
+        return program;
+    }
+
+    NodePtr Parser::Statement()
+    {
+        auto token = m_Tokens[m_Index];
+
+        if (token.Type == TokenType::IF)
+        {
+            return ParseIfStatement();
+        }
+
+        auto expr = Expression();
+        return expr;
+    }
+
+    NodePtr Parser::ParseIfStatement()
+    {
+        m_Index++;
+        auto condition = Expression();
+
+        std::vector<NodePtr> thenStatements;
+
+        while (m_Index < m_Tokens.size() &&
+               m_Tokens[m_Index].Type != TokenType::ELSE &&
+               m_Tokens[m_Index].Type != TokenType::END &&
+               m_Tokens[m_Index].Type != TokenType::END_OF_FILE)
+        {
+            thenStatements.push_back(Statement());
+        }
+
+        NodePtr thenBranch = std::make_unique<BlockNode>(std::move(thenStatements));
+        NodePtr elseBranch = nullptr;
+
+        if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::ELSE)
+        {
+            m_Index++;
+            std::vector<NodePtr> elseStatements;
+            while (m_Index < m_Tokens.size() &&
+                   m_Tokens[m_Index].Type != TokenType::END &&
+                   m_Tokens[m_Index].Type != TokenType::END_OF_FILE)
+            {
+                elseStatements.push_back(Statement());
+            }
+            elseBranch = std::make_unique<BlockNode>(std::move(elseStatements));
+        }
+
+        if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::END)
+            m_Index++;
+        else
+            throw std::runtime_error("Expected 'end' to close 'if' statement.");
+
+        return std::make_unique<IfNode>(
+            std::move(condition), std::move(thenBranch), std::move(elseBranch));
+    }
+
+    NodePtr Parser::ParseBlock()
+    {
+        std::vector<NodePtr> statements;
+        while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END && m_Tokens[m_Index].Type != TokenType::END_OF_FILE)
+            statements.push_back(Statement());
+
+        if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::END)
+            m_Index++;
+
+        return std::make_unique<BlockNode>(std::move(statements));
     }
 
     NodePtr Parser::Expression()
+    {
+        auto left = AddictiveExpression();
+
+        while (m_Index < m_Tokens.size() && (m_Tokens[m_Index].Type == TokenType::EQUALS))
+        {
+            auto op = m_Tokens[m_Index];
+            m_Index++;
+            auto right = AddictiveExpression();
+            left = std::make_unique<EqualsExpressionNode>(std::move(left), std::move(right), op.Value == "!=");
+        }
+
+        return left;
+    }
+
+    NodePtr Parser::AddictiveExpression()
     {
         auto left = Term();
 
@@ -66,6 +153,19 @@ namespace Aleng
             return std::make_unique<StringNode>(token.Value);
         }
 
+        if (token.Type == TokenType::IDENTIFIER)
+        {
+            m_Index++;
+            if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::ASSIGN)
+            {
+                m_Index++;
+                auto right = Expression();
+                return std::make_unique<AssignExpressionNode>(token.Value, std::move(right));
+            }
+
+            return std::make_unique<IdentifierNode>(token.Value);
+        }
+
         if (token.Type == TokenType::LPAREN)
         {
             m_Index++;
@@ -83,6 +183,6 @@ namespace Aleng
     {
         if (m_Index + 1 < m_Tokens.size())
             return m_Tokens[m_Index + 1];
-        return {TokenType::END, ""};
+        return {TokenType::END_OF_FILE, ""};
     }
 }

@@ -10,14 +10,14 @@ namespace Aleng
         FLOAT,
         STRING,
         IDENTIFIER,
-        COMMA,
-        SEMICOLON,
+
         LBRACE,
         RBRACE,
         LCURLY,
         RCURLY,
         LPAREN,
         RPAREN,
+
         PLUS,
         MINUS,
         MULTIPLY,
@@ -25,11 +25,23 @@ namespace Aleng
         DIVIDE,
         GREATER,
         MINOR,
+
+        COMMA,
+        SEMICOLON,
+        DOLLAR,
         EQUALS,
         ASSIGN,
-        KEYWORD,
+
+        IF,
+        ELSE,
+        FOR,
+        WHILE,
+        FUNCTION,
+        END,
+        MODULE,
+
         UNKNOWN,
-        END
+        END_OF_FILE
     };
 
     struct Token

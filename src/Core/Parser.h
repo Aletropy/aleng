@@ -9,10 +9,14 @@ namespace Aleng
     {
     public:
         Parser(const std::string &input);
-        NodePtr Parse();
+        std::unique_ptr<ProgramNode> ParseProgram();
 
     private:
+        NodePtr Statement();
+        NodePtr ParseBlock();
+        NodePtr ParseIfStatement();
         NodePtr Expression();
+        NodePtr AddictiveExpression();
         NodePtr Term();
         NodePtr Factor();
 

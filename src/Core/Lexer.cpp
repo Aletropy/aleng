@@ -13,7 +13,7 @@ namespace Aleng
     {
         if (m_Index >= m_Input.length())
         {
-            return {TokenType::END, ""};
+            return {TokenType::END_OF_FILE, ""};
         }
 
         while (m_Input[m_Index] == ' ' || m_Input[m_Index] == '\t' || m_Input[m_Index] == '\n')
@@ -60,7 +60,28 @@ namespace Aleng
                 m_Index++;
             }
 
+            if (value == "if")
+                return {TokenType::IF, value};
+            else if (value == "else")
+                return {TokenType::ELSE, value};
+            else if (value == "while")
+                return {TokenType::WHILE, value};
+            else if (value == "for")
+                return {TokenType::FOR, value};
+            else if (value == "fn")
+                return {TokenType::FUNCTION, value};
+            else if (value == "module")
+                return {TokenType::MODULE, value};
+            else if (value == "end")
+                return {TokenType::END, value};
+
             return {TokenType::IDENTIFIER, value};
+        }
+
+        if (c == '$')
+        {
+            m_Index++;
+            return {TokenType::DOLLAR, '$'};
         }
 
         if (c == '"')
@@ -94,6 +115,18 @@ namespace Aleng
 
             m_Index++;
             return {TokenType::ASSIGN, c};
+        }
+
+        if (c == '!')
+        {
+            if (m_Input[m_Index + 1] == '=')
+            {
+                m_Index += 2;
+                return {TokenType::EQUALS, "!="};
+            }
+
+            throw std::runtime_error("NOT not supported yet.");
+            return {TokenType::UNKNOWN, ""};
         }
 
         // General characters

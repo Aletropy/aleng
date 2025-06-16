@@ -2,12 +2,15 @@
 #include "Core/Visitor.h"
 #include "Core/Parser.h"
 
+#include <filesystem>
+#include <fstream>
 #include <sstream>
 
-int main()
-{
-    auto visitor = Aleng::Visitor();
+namespace fs = std::filesystem;
+using namespace Aleng;
 
+void RunREPL(Visitor &visitor)
+{
     while (true)
     {
         std::cout << "Aleng$ ";
@@ -25,8 +28,8 @@ int main()
 
         try
         {
-            auto parser = Aleng::Parser(ss.str());
-            auto ast = parser.Parse();
+            auto parser = Parser(ss.str());
+            auto ast = parser.ParseProgram();
 
             auto result = ast->Accept(visitor);
 
@@ -39,5 +42,143 @@ int main()
         {
             std::cout << "Error: " << err.what() << std::endl;
         }
+    }
+}
+
+EvaluatedValue ExecuteAlengFile(const std::string &filepath, Visitor &visitor)
+{
+    std::ifstream file(filepath);
+    if (!file.is_open())
+    {
+        std::cerr << "Warning: Could not open file " << filepath << " for execution." << std::endl;
+        return 0.0;
+    }
+
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    file.close();
+
+    std::string sourceCode = buffer.str();
+    auto parser = Parser(sourceCode);
+    auto programAst = parser.ParseProgram();
+
+    return programAst->Accept(visitor);
+}
+
+int main(int argc, char *argv[])
+{
+    auto visitor = Visitor();
+
+    fs::path workspacePath;
+    std::string mainFilename = "main.aleng";
+    fs::path resolvedMainFilePath;
+
+    if (argc >= 2)
+    {
+        std::string argument = argv[1];
+
+        if (argument.starts_with("--") && argument == "--repl")
+        {
+            RunREPL(visitor);
+            return 0;
+        }
+        else
+        {
+            fs::path targetPath(argument);
+
+            if (fs::is_directory(targetPath))
+            {
+                workspacePath = targetPath;
+                if (!fs::exists(workspacePath / mainFilename))
+                {
+                    std::cerr << "Error: " << mainFilename << " not found in " << workspacePath << std::endl;
+                    return 1;
+                }
+            }
+            else if (fs::is_regular_file(targetPath))
+            {
+                workspacePath = targetPath.parent_path();
+                mainFilename = targetPath.filename().string();
+            }
+            else
+            {
+                std::cerr << "Error: invalid path " << argument << std::endl;
+            }
+        }
+    }
+    else
+    {
+        bool foundMain = false;
+        try
+        {
+            for (const auto &entry : fs::recursive_directory_iterator(fs::current_path()))
+            {
+                if (entry.is_regular_file() && entry.path().filename() == mainFilename)
+                {
+                    resolvedMainFilePath = fs::absolute(entry.path());
+                    workspacePath = resolvedMainFilePath.parent_path();
+                    foundMain = true;
+                    break;
+                }
+            }
+        }
+        catch (const fs::filesystem_error &e)
+        {
+            std::cerr << "Filesystem error while searching for main.aleng: " << e.what() << std::endl;
+            return 1;
+        }
+
+        if (!foundMain)
+        {
+            std::cerr << "Error: Could not find '" << mainFilename
+                      << "' recursively from the current directory. Try specifying a path or '--repl'." << std::endl;
+            return 1;
+        }
+    }
+
+    if (workspacePath.empty() && !resolvedMainFilePath.empty())
+    {
+        workspacePath = resolvedMainFilePath.parent_path();
+    }
+
+    std::vector<fs::path> alengFiles;
+
+    try
+    {
+        for (const auto &entry : fs::recursive_directory_iterator(workspacePath))
+        {
+            if (entry.is_regular_file() && entry.path().extension() == ".aleng")
+            {
+                if (entry.path().filename().string() != mainFilename)
+                {
+                    alengFiles.push_back(entry.path());
+                }
+            }
+        }
+
+        for (const auto &alengFile : alengFiles)
+        {
+            ExecuteAlengFile(alengFile.string(), visitor);
+        }
+
+        if (fs::exists(resolvedMainFilePath))
+        {
+            auto result = ExecuteAlengFile(resolvedMainFilePath.string(), visitor);
+
+            if (auto d = std::get_if<double>(&result))
+                std::cout << *d << std::endl;
+            if (auto s = std::get_if<std::string>(&result))
+                std::cout << *s << std::endl;
+        }
+        else
+        {
+            std::cerr << "Error: Could not find " << resolvedMainFilePath.string() << std::endl;
+            return 1;
+        }
+    }
+    catch (const std::runtime_error &err)
+    {
+        std::cerr << "Runtime Error: " << err.what() << std::endl;
+        return 1;
     }
 }

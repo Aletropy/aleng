@@ -4,6 +4,56 @@
 
 namespace Aleng
 {
+    bool Visitor::IsTruthy(const EvaluatedValue &val)
+    {
+        if (auto pval = std::get_if<double>(&val))
+        {
+            return *pval != 0.0;
+        }
+        if (auto sval = std::get_if<std::string>(&val))
+        {
+            return !sval->empty();
+        }
+
+        return false;
+    }
+
+    EvaluatedValue Visitor::Visit(const ProgramNode &node)
+    {
+        EvaluatedValue latestResult;
+        for (auto &nodePtr : node.Statements)
+        {
+            latestResult = nodePtr->Accept(*this);
+        }
+
+        return latestResult;
+    }
+
+    EvaluatedValue Visitor::Visit(const BlockNode &node)
+    {
+        EvaluatedValue latestResult;
+        for (auto &nodePtr : node.Statements)
+        {
+            latestResult = nodePtr->Accept(*this);
+        }
+
+        return latestResult;
+    }
+
+    EvaluatedValue Visitor::Visit(const IfNode &node)
+    {
+        EvaluatedValue conditionResult = node.Condition->Accept(*this);
+        if (IsTruthy(conditionResult))
+        {
+            return node.ThenBranch->Accept(*this);
+        }
+        else if (node.ElseBranch)
+        {
+            return node.ElseBranch->Accept(*this);
+        }
+        return 0.0;
+    }
+
     EvaluatedValue Visitor::Visit(const IntegerNode &node)
     {
         return EvaluatedValue(static_cast<double>(node.Value));
@@ -15,6 +65,54 @@ namespace Aleng
     EvaluatedValue Visitor::Visit(const StringNode &node)
     {
         return static_cast<EvaluatedValue>(node.Value);
+    }
+    EvaluatedValue Visitor::Visit(const IdentifierNode &node)
+    {
+        for (const auto &pair : m_Values)
+            if (pair.first == node.Value)
+                return pair.second;
+
+        throw std::runtime_error("Identifier \"" + node.Value + "\" not defined");
+        return static_cast<EvaluatedValue>(node.Value);
+    }
+    EvaluatedValue Visitor::Visit(const AssignExpressionNode &node)
+    {
+        auto right = node.Right->Accept(*this);
+
+        m_Values[node.Left] = right;
+
+        return static_cast<EvaluatedValue>(right);
+    }
+    EvaluatedValue Visitor::Visit(const EqualsExpressionNode &node)
+    {
+        auto left = node.Left->Accept(*this);
+        auto right = node.Right->Accept(*this);
+
+        EvaluatedValue result = 0.0;
+
+        std::visit(
+            overloads{
+                [&](double l, double r)
+                {
+                    if (l == r)
+                        result = 1.0;
+                    else if (l != r && node.Inverse)
+                        result = 1.0;
+                },
+                [&](std::string l, std::string r)
+                {
+                    if (l == r)
+                        result = 1.0;
+                    else if (l != r && node.Inverse)
+                        result = 1.0;
+                },
+                [&](auto &l, auto &r)
+                {
+                    result = node.Inverse ? 1.0 : 0.0;
+                }},
+            left, right);
+
+        return result;
     }
     EvaluatedValue Visitor::Visit(const BinaryExpressionNode &node)
     {

@@ -162,6 +162,33 @@ namespace Aleng
                 auto right = Expression();
                 return std::make_unique<AssignExpressionNode>(token.Value, std::move(right));
             }
+            if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::LPAREN)
+            {
+                m_Index++;
+                std::vector<NodePtr> args;
+
+                if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::RPAREN)
+                {
+                    args.push_back(Expression());
+
+                    while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::COMMA)
+                    {
+                        m_Index++;
+                        args.push_back(Expression());
+                    }
+                }
+
+                if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::RPAREN)
+                {
+                    m_Index++;
+                }
+                else
+                {
+                    throw std::runtime_error("Expected ')' after function arguments.");
+                }
+
+                return std::make_unique<FunctionCallNode>(token.Value, std::move(args));
+            }
 
             return std::make_unique<IdentifierNode>(token.Value);
         }

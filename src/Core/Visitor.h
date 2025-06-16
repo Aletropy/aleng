@@ -18,6 +18,7 @@ namespace Aleng
         EvaluatedValue Visit(const StringNode &node);
         EvaluatedValue Visit(const IdentifierNode &node);
         EvaluatedValue Visit(const AssignExpressionNode &node);
+        EvaluatedValue Visit(const FunctionCallNode &node);
         EvaluatedValue Visit(const BinaryExpressionNode &node);
         EvaluatedValue Visit(const EqualsExpressionNode &node);
 

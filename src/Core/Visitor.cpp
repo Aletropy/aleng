@@ -1,6 +1,11 @@
 #include "Visitor.h"
 
+#include "Window/Window.h"
+#include <fstream>
+#include <filesystem>
 #include <sstream>
+
+namespace fs = std::filesystem;
 
 namespace Aleng
 {
@@ -114,6 +119,73 @@ namespace Aleng
 
         return result;
     }
+
+    EvaluatedValue Visitor::Visit(const FunctionCallNode &node)
+    {
+        std::vector<EvaluatedValue> resolvedArgs;
+
+        for (auto &p : node.Arguments)
+            resolvedArgs.push_back(p->Accept(*this));
+
+        if (node.Name == "Print")
+        {
+            for (auto &arg : resolvedArgs)
+                PrintEvaluatedValue(arg);
+            return 0.0;
+        }
+
+        if (node.Name == "ReadFile")
+        {
+            std::string *pPath = nullptr;
+            if (!(pPath = std::get_if<std::string>(&resolvedArgs[0])))
+                throw std::runtime_error("Usage: ReadFile(path : STRING) -> STRING");
+
+            std::string pathStr = *pPath;
+            fs::path filePath(pathStr);
+            std::ifstream file(fs::absolute(filePath));
+
+            if (!file.is_open())
+            {
+                throw std::runtime_error("Error: cannot open file '" + fs::absolute(filePath).string() + "'.");
+            }
+
+            std::stringstream buffer;
+            buffer << file.rdbuf();
+
+            return buffer.str();
+        }
+
+        if (node.Name == "CreateWindow")
+        {
+            std::string *pTitle = nullptr;
+            double *pWidth = nullptr;
+            double *pHeight = nullptr;
+
+            if (pTitle = std::get_if<std::string>(&resolvedArgs[0]))
+            {
+            }
+            if (pWidth = std::get_if<double>(&resolvedArgs[1]))
+            {
+            }
+            if (pHeight = std::get_if<double>(&resolvedArgs[2]))
+            {
+            }
+
+            if (pTitle == nullptr || pWidth == nullptr || pHeight == nullptr)
+            {
+                throw std::runtime_error("Usage: Window(title : STRING, width : INT, height : INT)");
+            }
+
+            auto window = Window(*pTitle, static_cast<int>(*pWidth), static_cast<int>(*pHeight));
+            std::cout << "Warning: Window running synchronous" << std::endl;
+            window.Update();
+            return 0.0;
+        }
+
+        throw std::runtime_error("Function '" + node.Name + "' not defined.");
+        return 0.0;
+    }
+
     EvaluatedValue Visitor::Visit(const BinaryExpressionNode &node)
     {
         auto left = node.Left->Accept(*this);

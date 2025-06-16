@@ -165,10 +165,10 @@ int main(int argc, char *argv[])
         {
             auto result = ExecuteAlengFile(resolvedMainFilePath.string(), visitor);
 
-            if (auto d = std::get_if<double>(&result))
-                std::cout << *d << std::endl;
-            if (auto s = std::get_if<std::string>(&result))
-                std::cout << *s << std::endl;
+            // if (auto d = std::get_if<double>(&result))
+            //     std::cout << *d << std::endl;
+            // if (auto s = std::get_if<std::string>(&result))
+            //     std::cout << *s << std::endl;
         }
         else
         {

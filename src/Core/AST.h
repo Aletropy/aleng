@@ -20,6 +20,8 @@ namespace Aleng
     using EvaluatedValue = std::variant<double, std::string>;
     class Visitor;
 
+    void PrintEvaluatedValue(EvaluatedValue &value);
+
     struct ASTNode
     {
         ASTNode() = default;
@@ -85,6 +87,19 @@ namespace Aleng
 
         EqualsExpressionNode(NodePtr left, NodePtr right, bool inv = false)
             : Left(std::move(left)), Right(std::move(right)), Inverse(inv)
+        {
+        }
+
+        EvaluatedValue Accept(Visitor &visitor) const override;
+    };
+
+    struct FunctionCallNode : ASTNode
+    {
+        std::string Name;
+        std::vector<NodePtr> Arguments;
+
+        FunctionCallNode(const std::string &name, std::vector<NodePtr> args)
+            : Name(name), Arguments(std::move(args))
         {
         }
 

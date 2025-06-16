@@ -3,6 +3,14 @@
 
 namespace Aleng
 {
+    void PrintEvaluatedValue(EvaluatedValue &value)
+    {
+        if (auto pvalue = std::get_if<double>(&value))
+            std::cout << *pvalue << std::endl;
+        if (auto svalue = std::get_if<std::string>(&value))
+            std::cout << *svalue << std::endl;
+    }
+
     EvaluatedValue ProgramNode::Accept(Visitor &visitor) const
     {
         return visitor.Visit(*this);
@@ -31,6 +39,11 @@ namespace Aleng
     EvaluatedValue EqualsExpressionNode::Accept(Visitor &visitor) const
     {
         return visitor.Visit(*this);
+    }
+
+    EvaluatedValue FunctionCallNode::Accept(Visitor &Visitor) const
+    {
+        return Visitor.Visit(*this);
     }
 
     EvaluatedValue BinaryExpressionNode::Accept(Visitor &visitor) const

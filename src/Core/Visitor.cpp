@@ -5,6 +5,8 @@
 #include <filesystem>
 #include <sstream>
 
+#include "Parser.h"
+
 namespace fs = std::filesystem;
 
 namespace Aleng
@@ -21,6 +23,31 @@ namespace Aleng
         }
 
         return false;
+    }
+
+    void Visitor::LoadModuleFiles(std::map<std::string, fs::path> moduleFiles)
+    {
+        m_AvailableModules = moduleFiles;
+    }
+
+    EvaluatedValue Visitor::ExecuteAlengFile(const std::string &filepath, Visitor &visitor)
+    {
+        std::ifstream file(filepath);
+        if (!file.is_open())
+        {
+            std::cerr << "Warning: Could not open file " << filepath << " for execution." << std::endl;
+            return 0.0;
+        }
+
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        file.close();
+
+        std::string sourceCode = buffer.str();
+        auto parser = Parser(sourceCode);
+        auto programAst = parser.ParseProgram();
+
+        return programAst->Accept(visitor);
     }
 
     EvaluatedValue Visitor::Visit(const ProgramNode &node)
@@ -183,6 +210,25 @@ namespace Aleng
         }
 
         throw std::runtime_error("Function '" + node.Name + "' not defined.");
+        return 0.0;
+    }
+
+    EvaluatedValue Visitor::Visit(const ImportModuleNode &node)
+    {
+        for (auto &entry : m_ImportedModules)
+        {
+            if (entry == node.ModuleName)
+                return 0.0;
+        }
+
+        auto path = m_AvailableModules[node.ModuleName];
+
+        if (path.empty())
+            throw std::runtime_error("Module '" + node.ModuleName + "' not found.");
+
+        m_ImportedModules.push_back(node.ModuleName);
+        ExecuteAlengFile(path.string(), *this);
+
         return 0.0;
     }
 

@@ -7,6 +7,10 @@
 #include <vector>
 #include "Tokens.h"
 
+#include <filesystem>
+
+namespace fs = std::filesystem;
+
 namespace Aleng
 {
     struct ASTNode;
@@ -124,6 +128,18 @@ namespace Aleng
             os << " " << TokenTypeToString(Operator) << " "; // Usa a função helper
             os << *Right;
             os << ")";
+        }
+
+        EvaluatedValue Accept(Visitor &visitor) const override;
+    };
+
+    struct ImportModuleNode : ASTNode
+    {
+        std::string ModuleName;
+
+        ImportModuleNode(std::string moduleName)
+            : ModuleName(std::move(moduleName))
+        {
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;

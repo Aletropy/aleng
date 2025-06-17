@@ -3,6 +3,7 @@
 #include "Core/Parser.h"
 
 #include <filesystem>
+#include <map>
 #include <fstream>
 #include <sstream>
 
@@ -43,26 +44,6 @@ void RunREPL(Visitor &visitor)
             std::cout << "Error: " << err.what() << std::endl;
         }
     }
-}
-
-EvaluatedValue ExecuteAlengFile(const std::string &filepath, Visitor &visitor)
-{
-    std::ifstream file(filepath);
-    if (!file.is_open())
-    {
-        std::cerr << "Warning: Could not open file " << filepath << " for execution." << std::endl;
-        return 0.0;
-    }
-
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    file.close();
-
-    std::string sourceCode = buffer.str();
-    auto parser = Parser(sourceCode);
-    auto programAst = parser.ParseProgram();
-
-    return programAst->Accept(visitor);
 }
 
 int main(int argc, char *argv[])
@@ -141,7 +122,7 @@ int main(int argc, char *argv[])
         workspacePath = resolvedMainFilePath.parent_path();
     }
 
-    std::vector<fs::path> alengFiles;
+    std::map<std::string, fs::path> alengFiles;
 
     try
     {
@@ -151,19 +132,16 @@ int main(int argc, char *argv[])
             {
                 if (entry.path().filename().string() != mainFilename)
                 {
-                    alengFiles.push_back(entry.path());
+                    alengFiles[entry.path().stem()] = (entry.path());
                 }
             }
         }
 
-        for (const auto &alengFile : alengFiles)
-        {
-            ExecuteAlengFile(alengFile.string(), visitor);
-        }
+        visitor.LoadModuleFiles(alengFiles);
 
         if (fs::exists(resolvedMainFilePath))
         {
-            auto result = ExecuteAlengFile(resolvedMainFilePath.string(), visitor);
+            auto result = Visitor::ExecuteAlengFile(resolvedMainFilePath.string(), visitor);
 
             // if (auto d = std::get_if<double>(&result))
             //     std::cout << *d << std::endl;

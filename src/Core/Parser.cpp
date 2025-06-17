@@ -193,6 +193,19 @@ namespace Aleng
             return std::make_unique<IdentifierNode>(token.Value);
         }
 
+        if (token.Type == TokenType::MODULE)
+        {
+            m_Index++;
+
+            if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::STRING)
+            {
+                auto pathStr = m_Tokens[m_Index++].Value;
+                return std::make_unique<ImportModuleNode>(pathStr);
+            }
+
+            throw std::runtime_error("Expected module name after 'module' keyword.");
+        }
+
         if (token.Type == TokenType::LPAREN)
         {
             m_Index++;

@@ -51,6 +51,11 @@ namespace Aleng
         return visitor.Visit(*this);
     }
 
+    EvaluatedValue ImportModuleNode::Accept(Visitor &visitor) const
+    {
+        return visitor.Visit(*this);
+    }
+
     EvaluatedValue StringNode::Accept(Visitor &visitor) const
     {
         return visitor.Visit(*this);

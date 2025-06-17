@@ -6,7 +6,7 @@ You can find the project repository here: https://github.com/Aletropy/aleng
 
 ## Getting Started
 
-To begin using Aleng, you first need to build the project. See the [Building Aleng](#bulding-aleng) section for instructions.
+To begin using Aleng, you first need to build the project. See the [Building Aleng](#building-aleng) section for instructions.
 
 Once built, you can use Aleng in two primary ways:
 
@@ -23,10 +23,10 @@ Example:
 ```bash  
 Aleng --repl
 
-Aleng$ print("Hello, Aleng!")
+Aleng$ Print("Hello, Aleng!")
 Hello, Aleng!
 Aleng$ x = 10
-Aleng$ print(x * 2)
+Aleng$ Print(x * 2)
 20
 Aleng$ .exit
 ```
@@ -57,7 +57,7 @@ Example (Assuming you have a file named my_script.aleng):
 ```bash
 # my_script.aleng
 name = "World"
-print("Hello, " + name + "!")
+Print("Hello, " + name + "!")
 ```
 
 To run this script:

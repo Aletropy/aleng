@@ -33,11 +33,6 @@ void RunREPL(Visitor &visitor)
             auto ast = parser.ParseProgram();
 
             auto result = ast->Accept(visitor);
-
-            if (auto p = std::get_if<double>(&result))
-                std::cout << *p << std::endl;
-            else if (auto p = std::get_if<std::string>(&result))
-                std::cout << *p << std::endl;
         }
         catch (std::runtime_error err)
         {

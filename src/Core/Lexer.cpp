@@ -60,19 +60,19 @@ namespace Aleng
                 m_Index++;
             }
 
-            if (value == "if")
+            if (value == "If")
                 return {TokenType::IF, value};
-            else if (value == "else")
+            else if (value == "Else")
                 return {TokenType::ELSE, value};
-            else if (value == "while")
+            else if (value == "While")
                 return {TokenType::WHILE, value};
-            else if (value == "for")
+            else if (value == "For")
                 return {TokenType::FOR, value};
-            else if (value == "fn")
+            else if (value == "Fn")
                 return {TokenType::FUNCTION, value};
-            else if (value == "module")
+            else if (value == "Module")
                 return {TokenType::MODULE, value};
-            else if (value == "end")
+            else if (value == "End")
                 return {TokenType::END, value};
 
             return {TokenType::IDENTIFIER, value};

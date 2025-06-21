@@ -60,10 +60,10 @@ namespace Aleng
                 BUILTIN
             };
             Type type;
-            const FunctionDefinitionNode *userFuncNode;
+            std::unique_ptr<FunctionDefinitionNode> userFuncNode;
             BuiltinFunctionCallback builtinFunc;
 
-            Callable(const FunctionDefinitionNode *node) : type(Type::USER_DEFINED), userFuncNode(node), builtinFunc(nullptr) {}
+            Callable(std::unique_ptr<FunctionDefinitionNode> node) : type(Type::USER_DEFINED), userFuncNode(std::move(node)), builtinFunc(nullptr) {}
             Callable(BuiltinFunctionCallback func) : type(Type::BUILTIN), builtinFunc(std::move(func)) {}
         };
 

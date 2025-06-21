@@ -222,7 +222,7 @@ namespace Aleng
     {
         auto right = node.Right->Accept(*this);
 
-        DefineVariable(node.Left, right);
+        DefineVariable(std::string(node.Left), right);
 
         return static_cast<EvaluatedValue>(right);
     }
@@ -265,8 +265,10 @@ namespace Aleng
             std::cout << "Warning: Redefining function '" << node.FunctionName << "'." << std::endl;
         }
 
+        auto funcNodeCopy = std::make_unique<FunctionDefinitionNode>(node);
+
         m_Functions.erase(node.FunctionName);
-        m_Functions.emplace(node.FunctionName, Callable(const_cast<const FunctionDefinitionNode *>(&node)));
+        m_Functions.emplace(node.FunctionName, Callable(std::move(funcNodeCopy)));
         return 0.0;
     }
 
@@ -285,7 +287,7 @@ namespace Aleng
 
         if (callable.type == Callable::Type::USER_DEFINED)
         {
-            const FunctionDefinitionNode *funcDef = callable.userFuncNode;
+            auto &funcDef = callable.userFuncNode;
             if (!funcDef)
                 throw std::runtime_error("Internal error: User function node is null for " + node.Name);
             PushScope();

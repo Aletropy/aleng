@@ -39,6 +39,7 @@ namespace Aleng
         {
             os << "Empty ASTNode";
         }
+        virtual NodePtr Clone() const = 0;
         virtual EvaluatedValue Accept(Visitor &visitor) const = 0;
     };
 
@@ -72,6 +73,16 @@ namespace Aleng
                 node->Print(os);
         }
 
+        NodePtr Clone() const override
+        {
+            auto cloned = std::make_unique<ProgramNode>();
+            for (const auto &stmt : Statements)
+            {
+                if (stmt)
+                    cloned->Statements.push_back(stmt->Clone());
+            }
+            return cloned;
+        }
         EvaluatedValue Accept(Visitor &visitor) const override;
     };
 
@@ -95,6 +106,17 @@ namespace Aleng
             os << "}";
         }
 
+        NodePtr Clone() const override
+        {
+            std::vector<NodePtr> clonedStatements;
+            for (const auto &stmt : Statements)
+            {
+                if (stmt)
+                    clonedStatements.push_back(stmt->Clone());
+            }
+            return std::make_unique<BlockNode>(std::move(clonedStatements));
+        }
+
         EvaluatedValue Accept(Visitor &visitor) const override;
     };
 
@@ -108,6 +130,10 @@ namespace Aleng
             : Condition(std::move(cond)), ThenBranch(std::move(thenB)), ElseBranch(std::move(elseB))
         {
         }
+        IfNode(const IfNode &other)
+            : Condition(other.Condition ? other.Condition->Clone() : nullptr),
+              ThenBranch(other.ThenBranch ? other.ThenBranch->Clone() : nullptr),
+              ElseBranch(other.ElseBranch ? other.ElseBranch->Clone() : nullptr) {}
 
         void Print(std::ostream &os) const override
         {
@@ -123,6 +149,14 @@ namespace Aleng
             os << "\n";
         }
 
+        NodePtr Clone() const override
+        {
+            return std::make_unique<IfNode>(
+                Condition ? Condition->Clone() : nullptr,
+                ThenBranch ? ThenBranch->Clone() : nullptr,
+                ElseBranch ? ElseBranch->Clone() : nullptr);
+        }
+
         EvaluatedValue Accept(Visitor &visitor) const override;
     };
 
@@ -134,6 +168,12 @@ namespace Aleng
 
         FunctionDefinitionNode(std::string funcName, std::vector<Parameter> params, NodePtr body)
             : FunctionName(funcName), Parameters(std::move(params)), Body(std::move(body))
+        {
+        }
+        FunctionDefinitionNode(const FunctionDefinitionNode &other)
+            : FunctionName(other.FunctionName),
+              Parameters(other.Parameters),
+              Body(other.Body ? other.Body->Clone() : nullptr)
         {
         }
 
@@ -158,6 +198,11 @@ namespace Aleng
             os << " } End";
         }
 
+        NodePtr Clone() const override
+        {
+            return std::make_unique<FunctionDefinitionNode>(*this);
+        }
+
         EvaluatedValue Accept(Visitor &visitor) const override;
     };
 
@@ -170,6 +215,13 @@ namespace Aleng
             : Name(name), Arguments(std::move(args))
         {
         }
+        FunctionCallNode(const FunctionCallNode &other) : Name(other.Name)
+        {
+            for (const auto &arg : other.Arguments)
+            {
+                Arguments.push_back(arg ? arg->Clone() : nullptr);
+            }
+        }
 
         void Print(std::ostream &os) const override
         {
@@ -177,6 +229,17 @@ namespace Aleng
             for (auto &arg : Arguments)
                 arg->Print(os);
             os << ")\n";
+        }
+
+        NodePtr Clone() const override
+        {
+            std::vector<NodePtr> clonedArgs;
+            for (const auto &arg : Arguments)
+            {
+                if (arg)
+                    clonedArgs.push_back(arg->Clone());
+            }
+            return std::make_unique<FunctionCallNode>(Name, std::move(clonedArgs));
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -192,6 +255,10 @@ namespace Aleng
             : Left(std::move(left)), Right(std::move(right)), Inverse(inv)
         {
         }
+        EqualsExpressionNode(const EqualsExpressionNode &other)
+            : Left(other.Left ? other.Left->Clone() : nullptr),
+              Right(other.Right ? other.Right->Clone() : nullptr),
+              Inverse(other.Inverse) {}
 
         void Print(std::ostream &os) const override
         {
@@ -199,6 +266,14 @@ namespace Aleng
             os << Inverse ? "!=" : "==";
             Right->Print(os);
             os << "\n";
+        }
+
+        NodePtr Clone() const override
+        {
+            return std::make_unique<EqualsExpressionNode>(
+                Left ? Left->Clone() : nullptr,
+                Right ? Right->Clone() : nullptr,
+                Inverse);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -214,6 +289,10 @@ namespace Aleng
             : Operator(op), Left(std::move(left)), Right(std::move(right))
         {
         }
+        BinaryExpressionNode(const BinaryExpressionNode &other)
+            : Operator(other.Operator),
+              Left(other.Left ? other.Left->Clone() : nullptr),
+              Right(other.Right ? other.Right->Clone() : nullptr) {}
 
         void Print(std::ostream &os) const override
         {
@@ -222,6 +301,14 @@ namespace Aleng
             os << " " << TokenTypeToString(Operator) << " "; // Usa a função helper
             os << *Right;
             os << ")";
+        }
+
+        NodePtr Clone() const override
+        {
+            return std::make_unique<BinaryExpressionNode>(
+                Operator,
+                Left ? Left->Clone() : nullptr,
+                Right ? Right->Clone() : nullptr);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -235,10 +322,16 @@ namespace Aleng
             : ModuleName(std::move(moduleName))
         {
         }
+        ImportModuleNode(const ImportModuleNode &other) : ModuleName(other.ModuleName) {}
 
         void Print(std::ostream &os) const override
         {
             os << "Module " << ModuleName << "\n";
+        }
+
+        NodePtr Clone() const override
+        {
+            return std::make_unique<ImportModuleNode>(ModuleName);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -253,6 +346,9 @@ namespace Aleng
             : Left(std::move(left)), Right(std::move(right))
         {
         }
+        AssignExpressionNode(const AssignExpressionNode &other)
+            : Left(other.Left),
+              Right(other.Right ? other.Right->Clone() : nullptr) {}
 
         void Print(std::ostream &os) const override
         {
@@ -261,6 +357,11 @@ namespace Aleng
             os << " = ";
             os << *Right;
             os << ")";
+        }
+
+        NodePtr Clone() const override
+        {
+            return std::make_unique<AssignExpressionNode>(Left, Right ? Right->Clone() : nullptr);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -279,10 +380,16 @@ namespace Aleng
             : Value(value)
         {
         }
+        IntegerNode(const IntegerNode &other) : Value(other.Value) {}
 
         void Print(std::ostream &os) const override
         {
             os << Value;
+        }
+
+        NodePtr Clone() const override
+        {
+            return std::make_unique<IntegerNode>(Value);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -302,9 +409,16 @@ namespace Aleng
         {
         }
 
+        FloatNode(const FloatNode &other) : Value(other.Value) {}
+
         void Print(std::ostream &os) const override
         {
             os << Value << "f";
+        }
+
+        NodePtr Clone() const override
+        {
+            return std::make_unique<FloatNode>(Value);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -329,9 +443,16 @@ namespace Aleng
         {
         }
 
+        StringNode(const StringNode &other) : Value(other.Value) {}
+
         void Print(std::ostream &os) const override
         {
             os << "\"" << Value << "\"";
+        }
+
+        NodePtr Clone() const override
+        {
+            return std::make_unique<StringNode>(Value);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -356,9 +477,16 @@ namespace Aleng
         {
         }
 
+        IdentifierNode(const IdentifierNode &other) : Value(other.Value) {}
+
         void Print(std::ostream &os) const override
         {
             os << Value;
+        }
+
+        NodePtr Clone() const override
+        {
+            return std::make_unique<IdentifierNode>(Value);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;

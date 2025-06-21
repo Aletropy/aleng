@@ -30,6 +30,10 @@ namespace Aleng
         {
             return ParseIfStatement();
         }
+        if (token.Type == TokenType::FUNCTION)
+        {
+            return ParseFunctionDefinition();
+        }
 
         auto expr = Expression();
         return expr;
@@ -73,6 +77,73 @@ namespace Aleng
 
         return std::make_unique<IfNode>(
             std::move(condition), std::move(thenBranch), std::move(elseBranch));
+    }
+
+    NodePtr Parser::ParseFunctionDefinition()
+    {
+        m_Index++;
+
+        if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
+            throw std::runtime_error("Expected function name");
+
+        auto nameToken = m_Tokens[m_Index];
+        std::string funcName = nameToken.Value;
+        if (Peek().Type != TokenType::LPAREN)
+            throw std::runtime_error("Expected '(' after function name");
+        m_Index += 2;
+        std::vector<Parameter> params;
+        bool expectComma = false;
+        while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::RPAREN)
+        {
+            if (expectComma && m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::COMMA && m_Tokens[m_Index].Type != TokenType::RPAREN)
+                throw std::runtime_error("Expected ',' between parameters or ')'");
+
+            if (expectComma)
+                m_Index++;
+
+            bool isVariadic = false;
+            if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::DOLLAR)
+            {
+                m_Index++;
+                isVariadic = true;
+            }
+
+            if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
+                throw std::runtime_error("Expected parameter name");
+
+            auto paramToken = m_Tokens[m_Index];
+            std::string paramName = paramToken.Value;
+            std::optional<std::string> typeName;
+
+            m_Index++;
+
+            if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::COLON)
+            {
+                if (Peek().Type != TokenType::IDENTIFIER)
+                    throw std::runtime_error("Expected type name after ':'");
+                m_Index++;
+                auto typeNameToken = m_Tokens[m_Index];
+                typeName = typeNameToken.Value;
+                m_Index++;
+            }
+
+            params.emplace_back(paramName, typeName, isVariadic);
+            if (isVariadic && Peek().Type != TokenType::RPAREN)
+                throw std::runtime_error("Variadic parameter '$" + paramName + "' must be the last parameter.");
+            expectComma = true;
+        }
+
+        m_Index++;
+        std::vector<NodePtr> bodyStatements;
+        while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END && m_Tokens[m_Index].Type != TokenType::END_OF_FILE)
+        {
+            bodyStatements.push_back(Statement());
+        }
+
+        NodePtr body = std::make_unique<BlockNode>(std::move(bodyStatements));
+        m_Index++;
+
+        return std::make_unique<FunctionDefinitionNode>(funcName, std::move(params), std::move(body));
     }
 
     NodePtr Parser::ParseBlock()
@@ -166,27 +237,23 @@ namespace Aleng
             {
                 m_Index++;
                 std::vector<NodePtr> args;
+                bool expectCommaArgs = false;
+
+                do
+                {
+                    if (expectCommaArgs && m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::COMMA)
+                        throw std::runtime_error("Expected ',' between function arguments");
+                    if (expectCommaArgs)
+                        m_Index++;
+                    if (m_Tokens[m_Index].Type != TokenType::RPAREN)
+                        args.push_back(Expression());
+                    expectCommaArgs = true;
+                } while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::COMMA);
 
                 if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::RPAREN)
-                {
-                    args.push_back(Expression());
-
-                    while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::COMMA)
-                    {
-                        m_Index++;
-                        args.push_back(Expression());
-                    }
-                }
-
-                if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::RPAREN)
-                {
-                    m_Index++;
-                }
-                else
-                {
                     throw std::runtime_error("Expected ')' after function arguments.");
-                }
 
+                m_Index++;
                 return std::make_unique<FunctionCallNode>(token.Value, std::move(args));
             }
 
@@ -214,6 +281,14 @@ namespace Aleng
                 throw std::runtime_error("Expected ')'");
             m_Index++;
             return expr;
+        }
+
+        if (token.Type == TokenType::MINUS)
+        {
+            m_Index++;
+            NodePtr operand = Factor();
+            auto zero = std::make_unique<IntegerNode>(0);
+            return std::make_unique<BinaryExpressionNode>(TokenType::MINUS, std::move(zero), std::move(operand));
         }
 
         throw std::runtime_error("Unexpected token: " + token.Value);

@@ -3,7 +3,7 @@
 
 namespace Aleng
 {
-    void PrintEvaluatedValue(EvaluatedValue &value)
+    void PrintEvaluatedValue(const EvaluatedValue &value)
     {
         if (auto pvalue = std::get_if<double>(&value))
             std::cout << *pvalue << std::endl;
@@ -22,6 +22,11 @@ namespace Aleng
     }
 
     EvaluatedValue BlockNode::Accept(Visitor &visitor) const
+    {
+        return visitor.Visit(*this);
+    }
+
+    EvaluatedValue FunctionDefinitionNode::Accept(Visitor &visitor) const
     {
         return visitor.Visit(*this);
     }

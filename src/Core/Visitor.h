@@ -3,13 +3,24 @@
 #include "AST.h"
 #include <map>
 #include <unordered_map>
+#include <vector>
+#include <functional>
+#include <memory>
 
 namespace Aleng
 {
+    enum class AlengType
+    {
+        NUMBER,
+        STRING,
+        ANY
+    };
+    std::string AlengTypeToString(AlengType type);
+
     class Visitor
     {
     public:
-        Visitor() = default;
+        Visitor();
         void LoadModuleFiles(std::map<std::string, fs::path> moduleFiles);
 
         static EvaluatedValue ExecuteAlengFile(const std::string &filepath, Visitor &visitor);
@@ -22,6 +33,7 @@ namespace Aleng
         EvaluatedValue Visit(const StringNode &node);
         EvaluatedValue Visit(const IdentifierNode &node);
         EvaluatedValue Visit(const AssignExpressionNode &node);
+        EvaluatedValue Visit(const FunctionDefinitionNode &node);
         EvaluatedValue Visit(const FunctionCallNode &node);
         EvaluatedValue Visit(const ImportModuleNode &node);
         EvaluatedValue Visit(const BinaryExpressionNode &node);
@@ -29,11 +41,40 @@ namespace Aleng
 
     private:
         bool IsTruthy(const EvaluatedValue &val);
+        AlengType GetAlengType(const EvaluatedValue &val);
+
+        void PushScope();
+        void PopScope();
+
+        void DefineVariable(const std::string &name, const EvaluatedValue &value, bool allowRedefinitionCurrentScope = true);
+        EvaluatedValue LookupVariable(const std::string &name);
+        bool IsVariableDefinedInCurrentScope(const std::string &name);
+
+        using BuiltinFunctionCallback = std::function<EvaluatedValue(Visitor &, const std::vector<EvaluatedValue> &, const FunctionCallNode &)>;
+
+        struct Callable
+        {
+            enum class Type
+            {
+                USER_DEFINED,
+                BUILTIN
+            };
+            Type type;
+            const FunctionDefinitionNode *userFuncNode;
+            BuiltinFunctionCallback builtinFunc;
+
+            Callable(const FunctionDefinitionNode *node) : type(Type::USER_DEFINED), userFuncNode(node), builtinFunc(nullptr) {}
+            Callable(BuiltinFunctionCallback func) : type(Type::BUILTIN), builtinFunc(std::move(func)) {}
+        };
 
     private:
-        std::unordered_map<std::string, EvaluatedValue> m_Values;
+        std::vector<std::unordered_map<std::string, EvaluatedValue>> m_SymbolTableStack;
+        std::unordered_map<std::string, Callable> m_Functions;
+
         std::vector<std::string> m_ImportedModules;
         std::map<std::string, fs::path> m_AvailableModules;
+
+        void RegisterBuiltinFunctions();
     };
 
     template <class... Ts>

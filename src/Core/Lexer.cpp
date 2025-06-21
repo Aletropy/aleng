@@ -50,7 +50,7 @@ namespace Aleng
             return {TokenType::INTEGER, value};
         }
 
-        if (std::isalpha(c))
+        if (std::isalpha(c) || c == '_')
         {
             std::string value = "";
 
@@ -91,7 +91,33 @@ namespace Aleng
 
             while (m_Index < m_Input.length() && m_Input[m_Index] != '"')
             {
-                value += m_Input[m_Index];
+                if (m_Input[m_Index] == '\\')
+                {
+                    m_Index++;
+                    if (m_Index < m_Input.length())
+                    {
+                        switch (m_Input[m_Index])
+                        {
+                        case 'n':
+                            value += '\n';
+                            break;
+                        case 't':
+                            value += '\t';
+                            break;
+                        case '"':
+                            value += '"';
+                            break;
+                        case '\\':
+                            value += '\\';
+                            break;
+                        default:
+                            value += m_Input[m_Index]; // Or throw error
+                        }
+                    }
+                }
+                else
+                    value += m_Input[m_Index];
+
                 m_Index++;
             }
 
@@ -153,6 +179,9 @@ namespace Aleng
         case ';':
             m_Index++;
             return {TokenType::SEMICOLON, c};
+        case ':':
+            m_Index++;
+            return {TokenType::COLON, c};
         case '(':
             m_Index++;
             return {TokenType::LPAREN, c};
@@ -190,6 +219,7 @@ namespace Aleng
         {
             tokens.push_back(Next());
         }
+        tokens.push_back({TokenType::END_OF_FILE, ""});
         return tokens;
     }
 }

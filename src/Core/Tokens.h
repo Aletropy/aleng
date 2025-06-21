@@ -11,12 +11,12 @@ namespace Aleng
         STRING,
         IDENTIFIER,
 
-        LBRACE,
-        RBRACE,
-        LCURLY,
-        RCURLY,
-        LPAREN,
-        RPAREN,
+        LBRACE, // [
+        RBRACE, // ]
+        LCURLY, // {
+        RCURLY, // }
+        LPAREN, // (
+        RPAREN, // )
 
         PLUS,
         MINUS,
@@ -27,6 +27,7 @@ namespace Aleng
         MINOR,
 
         COMMA,
+        COLON,
         SEMICOLON,
         DOLLAR,
         EQUALS,
@@ -87,6 +88,8 @@ namespace Aleng
             return "(";
         case TokenType::RPAREN:
             return ")";
+        case TokenType::COLON:
+            return ":";
         case TokenType::SEMICOLON:
             return ";";
         case TokenType::UNKNOWN:

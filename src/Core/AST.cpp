@@ -11,7 +11,9 @@ namespace Aleng
             std::cout << *svalue;
         if (auto bvalue = std::get_if<bool>(&value))
             std::cout << ((*bvalue) ? "True" : "False");
-        if (auto lvalue = std::get_if<std::shared_ptr<ListRecursiveWrapper>>(&value))
+        if (auto fovalue = std::get_if<FunctionObject>(&value))
+            std::cout << "<Function: " << fovalue->Name << ">" << std::endl;
+        if (auto lvalue = std::get_if<ListStorage>(&value))
         {
             std::cout << "[";
             for (size_t i = 0; i < (*lvalue)->elements.size(); i++)
@@ -23,7 +25,7 @@ namespace Aleng
                     std::cout << *svalue;
                 if (auto bvalue = std::get_if<bool>(&val))
                     std::cout << ((*bvalue) ? "True" : "False");
-                if (auto llvalue = std::get_if<std::shared_ptr<ListRecursiveWrapper>>(&val))
+                if (auto llvalue = std::get_if<ListStorage>(&val))
                     PrintEvaluatedValue(*llvalue, true);
                 if (i < (*lvalue)->elements.size() - 1)
                     std::cout << ", ";
@@ -58,6 +60,12 @@ namespace Aleng
     EvaluatedValue FunctionDefinitionNode::Accept(Visitor &visitor) const
     {
         return visitor.Visit(*this);
+    }
+
+    EvaluatedValue MapNode::Accept(Visitor &visitor) const
+    {
+        // return visitor.Visit(*this);
+        return 0.0;
     }
 
     EvaluatedValue ListNode::Accept(Visitor &visitor) const

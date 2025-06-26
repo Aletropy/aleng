@@ -15,6 +15,7 @@ namespace Aleng
         STRING,
         BOOLEAN,
         LIST,
+        FUNCTION,
         ANY
     };
     std::string AlengTypeToString(AlengType type);
@@ -66,15 +67,16 @@ namespace Aleng
                 BUILTIN
             };
             Type type;
-            std::unique_ptr<FunctionDefinitionNode> userFuncNode;
+            std::shared_ptr<FunctionDefinitionNode> userFuncNode;
             BuiltinFunctionCallback builtinFunc;
+            SymbolTableStack definitionEnvironment;
 
-            Callable(std::unique_ptr<FunctionDefinitionNode> node) : type(Type::USER_DEFINED), userFuncNode(std::move(node)), builtinFunc(nullptr) {}
+            Callable(std::shared_ptr<FunctionDefinitionNode> node, SymbolTableStack stack) : type(Type::USER_DEFINED), userFuncNode(std::move(node)), builtinFunc(nullptr), definitionEnvironment(std::move(stack)) {}
             Callable(BuiltinFunctionCallback func) : type(Type::BUILTIN), builtinFunc(std::move(func)) {}
         };
 
     private:
-        std::vector<std::unordered_map<std::string, EvaluatedValue>> m_SymbolTableStack;
+        SymbolTableStack m_SymbolTableStack;
         std::unordered_map<std::string, Callable> m_Functions;
 
         std::vector<std::string> m_ImportedModules;

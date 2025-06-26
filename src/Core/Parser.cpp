@@ -272,7 +272,7 @@ namespace Aleng
                 throw std::runtime_error("Invalid left-hand side in assignment expression.");
 
             m_Index++;
-            NodePtr right = Expression();
+            NodePtr right = Statement();
             return std::make_unique<AssignExpressionNode>(
                 std::move(left), std::move(right));
         }
@@ -409,12 +409,7 @@ namespace Aleng
 
                 m_Index++;
 
-                auto funcNameNode = dynamic_cast<IdentifierNode *>(primaryExpr.get());
-
-                if (!funcNameNode)
-                    throw std::runtime_error("Expression before '(' is not a valid function name.");
-
-                primaryExpr = std::make_unique<FunctionCallNode>(funcNameNode->Value, std::move(args));
+                primaryExpr = std::make_unique<FunctionCallNode>(std::move(primaryExpr), std::move(args));
             }
             else if (m_Tokens[m_Index].Type == TokenType::LBRACE)
             {

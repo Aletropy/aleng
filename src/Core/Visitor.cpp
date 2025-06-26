@@ -23,13 +23,14 @@ namespace Aleng
             return "Boolean";
         case AlengType::LIST:
             return "List";
+        case AlengType::FUNCTION:
+            return "Function";
         case AlengType::ANY:
             return "Any";
         default:
             return "UNKNOWN_ALENG_TYPE";
         }
     }
-
 }
 
 namespace Aleng
@@ -42,7 +43,7 @@ namespace Aleng
             return !sval->empty();
         else if (auto bval = std::get_if<bool>(&val))
             return *bval;
-        else if (auto lval = std::get_if<std::shared_ptr<ListRecursiveWrapper>>(&val))
+        else if (auto lval = std::get_if<ListStorage>(&val))
             return !(*lval)->elements.empty();
 
         return false;
@@ -52,12 +53,14 @@ namespace Aleng
     {
         if (std::holds_alternative<double>(val))
             return AlengType::NUMBER;
-        if (std::holds_alternative<std::string>(val))
+        else if (std::holds_alternative<std::string>(val))
             return AlengType::STRING;
-        if (std::holds_alternative<bool>(val))
+        else if (std::holds_alternative<bool>(val))
             return AlengType::BOOLEAN;
-        if (std::holds_alternative<std::shared_ptr<ListRecursiveWrapper>>(val))
+        else if (std::holds_alternative<ListStorage>(val))
             return AlengType::LIST;
+        else if (std::holds_alternative<FunctionObject>(val))
+            return AlengType::FUNCTION;
         throw std::runtime_error("Unsupported EvaluatedValue type encountered in GetAlengType.");
     }
 
@@ -148,6 +151,56 @@ namespace Aleng
                                                         auto& arg = args[0];
                                                         bool isNumber = std::holds_alternative<double>(arg);
                                                         return isNumber ? arg : std::stod(std::get<std::string>(arg)); }));
+        m_Functions.emplace("Len", Callable([&](Visitor &, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
+                                            {
+                if (args.size() != 1)
+                    throw std::runtime_error("Len expects exacts one argument.");
+                auto objectVal = args[0];
+
+                if (auto pString = std::get_if<std::string>(&objectVal))
+                    return static_cast<double>((*pString).length());
+                else if (auto pListWrapper = std::get_if<ListStorage>(&objectVal))
+                    return static_cast<double>((*pListWrapper)->elements.size());
+
+                throw std::runtime_error(
+                    "Object of type '" + AlengTypeToString(GetAlengType(objectVal)) + "' not supported for Len function."); }));
+
+        m_Functions.emplace("Append", Callable([&](Visitor &, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
+                                               {
+                if (args.size() < 2)
+                    throw std::runtime_error("Append expects (List, ...).");
+                auto objectVal = args[0];
+
+                if (auto pListWrapper = std::get_if<ListStorage>(&objectVal))
+                {
+                    for(size_t i = 1; i < args.size(); i++)
+                        (*pListWrapper)->elements.push_back(args[i]);
+                    return *pListWrapper;
+                }
+
+                throw std::runtime_error(
+                    "Object of type '" + AlengTypeToString(GetAlengType(objectVal)) + "' not supported for Append function."); }));
+        m_Functions.emplace("Pop", Callable([&](Visitor &, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
+                                            {
+                if (args.size() != 1)
+                    throw std::runtime_error("Len expects exacts one list as argument.");
+                auto objectVal = args[0];
+
+                if (auto pListWrapper = std::get_if<ListStorage>(&objectVal))
+                {
+                    auto& elements = (*pListWrapper)->elements;
+                    if(elements.size() > 0)
+                    {
+                        auto element = elements[elements.size()-1];
+                        (*pListWrapper)->elements.pop_back();
+                        return element;
+                    }
+                    else
+                        return false;
+                }
+
+                throw std::runtime_error(
+                    "Object of type '" + AlengTypeToString(GetAlengType(objectVal)) + "' not supported for Pop function."); }));
     }
 
     void Visitor::LoadModuleFiles(std::map<std::string, fs::path> moduleFiles)
@@ -275,7 +328,7 @@ namespace Aleng
             const auto &info = *node.CollectionLoopInfo;
 
             EvaluatedValue collection = info.CollectionExpression->Accept(*this);
-            if (auto pList = std::get_if<std::shared_ptr<ListRecursiveWrapper>>(&collection))
+            if (auto pList = std::get_if<ListStorage>(&collection))
             {
                 for (const auto &item : (*pList)->elements)
                 {
@@ -342,14 +395,34 @@ namespace Aleng
     }
     EvaluatedValue Visitor::Visit(const IdentifierNode &node)
     {
-        return LookupVariable(node.Value);
+        for (auto it = m_SymbolTableStack.rbegin(); it != m_SymbolTableStack.rend(); ++it)
+        {
+            if (it->count(node.Value))
+                return it->at(node.Value);
+        }
+
+        auto funcIt = m_Functions.find(node.Value);
+        if (funcIt != m_Functions.end())
+        {
+            const Callable &callable = funcIt->second;
+            if (callable.type == Callable::Type::USER_DEFINED)
+            {
+                return FunctionObject(node.Value, callable.userFuncNode, callable.definitionEnvironment);
+            }
+            else
+            {
+                return FunctionObject(node.Value);
+            }
+        }
+
+        throw std::runtime_error("Identifier \"" + node.Value + "\" not defined as variable or function.");
     }
     EvaluatedValue Visitor::Visit(const ListAccessNode &node)
     {
         auto listObjectVal = node.Object->Accept(*this);
         auto indexVal = node.Index->Accept(*this);
 
-        if (auto listWrapperPtr = std::get_if<std::shared_ptr<ListRecursiveWrapper>>(&listObjectVal))
+        if (auto listWrapperPtr = std::get_if<ListStorage>(&listObjectVal))
         {
             if (auto indexDouble = std::get_if<double>(&indexVal))
             {
@@ -383,7 +456,7 @@ namespace Aleng
             auto listObjectVal = listAccess->Object->Accept(*this);
             auto indexVal = listAccess->Index->Accept(*this);
 
-            if (auto listWrapperPtr = std::get_if<std::shared_ptr<ListRecursiveWrapper>>(&listObjectVal))
+            if (auto listWrapperPtr = std::get_if<ListStorage>(&listObjectVal))
             {
                 if (auto indexDouble = std::get_if<double>(&indexVal))
                 {
@@ -446,41 +519,55 @@ namespace Aleng
             std::cout << "Warning: Redefining function '" << node.FunctionName << "'." << std::endl;
         }
 
-        auto funcNodeCopy = std::make_unique<FunctionDefinitionNode>(node);
+        auto funcNodeCopy = std::make_shared<FunctionDefinitionNode>(node);
+
+        SymbolTableStack currentEnv = m_SymbolTableStack;
 
         m_Functions.erase(node.FunctionName);
-        m_Functions.emplace(node.FunctionName, Callable(std::move(funcNodeCopy)));
-        return 0.0;
+        m_Functions.emplace(node.FunctionName, Callable(std::move(funcNodeCopy), std::move(currentEnv)));
+        return false;
     }
 
     EvaluatedValue Visitor::Visit(const FunctionCallNode &node)
     {
+        EvaluatedValue callableVar = node.CallableExpression->Accept(*this);
+
+        auto pFuncObj = std::get_if<FunctionObject>(&callableVar);
+
+        if (!pFuncObj)
+        {
+            std::stringstream ss;
+            node.CallableExpression->Print(ss);
+            throw std::runtime_error("Expression '" + ss.str() + "' is not callable.");
+        }
+
+        const FunctionObject &funcObj = *pFuncObj;
+
         std::vector<EvaluatedValue> resolvedArgs;
 
         for (auto &p : node.Arguments)
             resolvedArgs.push_back(p->Accept(*this));
 
-        auto funcIt = m_Functions.find(node.Name);
-        if (funcIt == m_Functions.end())
-            throw std::runtime_error("Function '" + node.Name + "' not defined.");
-
-        const Callable &callable = funcIt->second;
-
-        if (callable.type == Callable::Type::USER_DEFINED)
+        if (funcObj.Type == FunctionObject::Type::USER_DEFINED)
         {
-            auto &funcDef = callable.userFuncNode;
-            if (!funcDef)
-                throw std::runtime_error("Internal error: User function node is null for " + node.Name);
+            if (!funcObj.UserFuncNodeAst)
+                throw std::runtime_error("Internal error: User-defined FunctionObject has no AST node for '" + funcObj.Name + "'.");
+
+            SymbolTableStack callingEnvironment = m_SymbolTableStack;
+            m_SymbolTableStack = funcObj.CapturedEnvironment;
+
             PushScope();
+
+            const auto &funcDef = *funcObj.UserFuncNodeAst;
 
             size_t argIdx = 0;
 
-            for (const auto &param : funcDef->Parameters)
+            for (const auto &param : funcDef.Parameters)
             {
                 if (argIdx >= resolvedArgs.size())
                 {
                     PopScope();
-                    throw std::runtime_error("Not enough arguments for function '" + funcDef->FunctionName + "'. Expected parameter '" + param.Name + "'.");
+                    throw std::runtime_error("Not enough arguments for function '" + funcDef.FunctionName + "'. Expected parameter '" + param.Name + "'.");
                 }
 
                 const EvaluatedValue &argVal = resolvedArgs[argIdx];
@@ -496,14 +583,14 @@ namespace Aleng
                     else
                     {
                         PopScope();
-                        throw std::runtime_error("Unknown type name '" + *param.TypeName + "' in function '" + funcDef->FunctionName + "' signature for parameter '" + param.Name + "'.");
+                        throw std::runtime_error("Unknown type name '" + *param.TypeName + "' in function '" + funcDef.FunctionName + "' signature for parameter '" + param.Name + "'.");
                     }
 
                     AlengType actualType = GetAlengType(argVal);
                     if (actualType != expectedType)
                     {
                         PopScope();
-                        throw std::runtime_error("Type mismatch for parameter '" + param.Name + "' in function '" + funcDef->FunctionName +
+                        throw std::runtime_error("Type mismatch for parameter '" + param.Name + "' in function '" + funcDef.FunctionName +
                                                  "'. Expected " + *param.TypeName + " (" + AlengTypeToString(expectedType) +
                                                  ") but got " + AlengTypeToString(actualType) + ".");
                     }
@@ -516,17 +603,30 @@ namespace Aleng
             if (argIdx < resolvedArgs.size())
             {
                 PopScope();
-                throw std::runtime_error("Too many arguments for function '" + funcDef->FunctionName + "'. Expected " + std::to_string(funcDef->Parameters.size()) + " arguments, got " + std::to_string(resolvedArgs.size()) + ".");
+                throw std::runtime_error("Too many arguments for function '" + funcDef.FunctionName + "'. Expected " + std::to_string(funcDef.Parameters.size()) + " arguments, got " + std::to_string(resolvedArgs.size()) + ".");
             }
 
-            auto result = funcDef->Body->Accept(*this);
-            PopScope();
+            auto result = funcDef.Body->Accept(*this);
+
+            m_SymbolTableStack = callingEnvironment;
+
             return result;
         }
-        else if (callable.type == Callable::Type::BUILTIN)
-            return callable.builtinFunc(*this, resolvedArgs, node);
+        else if (funcObj.Type == FunctionObject::Type::BUILTIN)
+        {
+            auto builtinIt = m_Functions.find(funcObj.Name);
+            if (builtinIt == m_Functions.end() || builtinIt->second.type != Callable::Type::BUILTIN)
+            {
+                throw std::runtime_error("Internal error: Built-in function '" + funcObj.Name + "' not found or misconfigured.");
+            }
+            return builtinIt->second.builtinFunc(*this, resolvedArgs, node);
+        }
+        else
+        {
+            throw std::runtime_error("Internal error: Unknown FunctionObject type.");
+        }
 
-        throw std::runtime_error("Internal error: Unknown callable type for function " + node.Name);
+        throw std::runtime_error("Internal error: Unknown callable type for function " + funcObj.Name);
     }
 
     EvaluatedValue Visitor::Visit(const ImportModuleNode &node)

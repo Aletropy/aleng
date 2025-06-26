@@ -6,6 +6,7 @@
 #include <variant>
 #include <vector>
 #include <optional>
+#include <unordered_map>
 #include "Tokens.h"
 
 #include <filesystem>
@@ -24,12 +25,21 @@ namespace Aleng
 
     class Visitor;
     struct ListRecursiveWrapper;
+    struct MapRecursiveWrapper;
+    struct FunctionObject;
+
+    using ListStorage = std::shared_ptr<ListRecursiveWrapper>;
+    using MapStorage = std::shared_ptr<MapRecursiveWrapper>;
 
     using EvaluatedValue = std::variant<
         double,
         std::string,
         bool,
-        std::shared_ptr<ListRecursiveWrapper>>;
+        ListStorage,
+        MapStorage,
+        FunctionObject>;
+
+    using SymbolTableStack = std::vector<std::unordered_map<std::string, EvaluatedValue>>;
 
     void PrintEvaluatedValue(const EvaluatedValue &value, bool raw = false);
 
@@ -327,14 +337,14 @@ namespace Aleng
 
     struct FunctionCallNode : ASTNode
     {
-        std::string Name;
+        NodePtr CallableExpression;
         std::vector<NodePtr> Arguments;
 
-        FunctionCallNode(const std::string &name, std::vector<NodePtr> args)
-            : Name(name), Arguments(std::move(args))
+        FunctionCallNode(NodePtr calExpr, std::vector<NodePtr> args)
+            : CallableExpression(std::move(calExpr)), Arguments(std::move(args))
         {
         }
-        FunctionCallNode(const FunctionCallNode &other) : Name(other.Name)
+        FunctionCallNode(const FunctionCallNode &other) : CallableExpression(other.CallableExpression->Clone())
         {
             for (const auto &arg : other.Arguments)
             {
@@ -344,7 +354,7 @@ namespace Aleng
 
         void Print(std::ostream &os) const override
         {
-            os << Name << "(";
+            os << CallableExpression << "(";
             for (auto &arg : Arguments)
                 arg->Print(os);
             os << ")\n";
@@ -358,7 +368,7 @@ namespace Aleng
                 if (arg)
                     clonedArgs.push_back(arg->Clone());
             }
-            return std::make_unique<FunctionCallNode>(Name, std::move(clonedArgs));
+            return std::make_unique<FunctionCallNode>(CallableExpression->Clone(), std::move(clonedArgs));
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -509,6 +519,38 @@ namespace Aleng
             return std::make_unique<ListAccessNode>(
                 Object ? Object->Clone() : nullptr,
                 Index ? Index->Clone() : nullptr);
+        }
+
+        EvaluatedValue Accept(Visitor &visitor) const override;
+    };
+
+    struct MapNode : ASTNode
+    {
+        std::unordered_map<std::string, NodePtr> Elements;
+        MapNode(std::unordered_map<std::string, NodePtr> elements)
+            : Elements(std::move(elements)) {}
+
+        void Print(std::ostream &os) const override
+        {
+            os << "{" << std::endl;
+            for (auto &pair : Elements)
+            {
+                os << pair.first << " = ";
+                pair.second->Print(os);
+                os << std::endl;
+            }
+            os << "}";
+        }
+
+        NodePtr Clone() const override
+        {
+            std::unordered_map<std::string, NodePtr> clonedElements;
+            for (auto &pair : Elements)
+            {
+                if (pair.second)
+                    clonedElements.emplace(pair.first, pair.second->Clone());
+            }
+            return std::make_unique<MapNode>(std::move(clonedElements));
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -685,4 +727,24 @@ namespace Aleng
 
         EvaluatedValue Accept(Visitor &visitor) const override;
     };
+
+    struct FunctionObject
+    {
+        std::string Name;
+        enum class Type
+        {
+            USER_DEFINED,
+            BUILTIN
+        };
+        Type Type;
+
+        std::shared_ptr<FunctionDefinitionNode> UserFuncNodeAst;
+        SymbolTableStack CapturedEnvironment;
+
+        FunctionObject(std::string n, std::shared_ptr<FunctionDefinitionNode> funcNode, SymbolTableStack stack)
+            : Name(std::move(n)), Type(Type::USER_DEFINED), CapturedEnvironment(std::move(stack)), UserFuncNodeAst(std::move(funcNode)) {}
+        FunctionObject(std::string n)
+            : Name(std::move(n)), Type(Type::BUILTIN), UserFuncNodeAst(nullptr) {}
+    };
+
 } // namespace Aleng

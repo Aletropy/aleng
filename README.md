@@ -616,7 +616,7 @@ Aleng provides a set of built-in functions:
 | `IsBoolean(value: Any) -> Boolean`              | Checks if the provided `value` is a boolean. Returns `true` or `false`.                                                                   |
 | `IsList(value: Any) -> Boolean`                 | Checks if the provided `value` is a list. Returns `true` or `false`.                                                                      |
 | `ParseNumber(value: Any) -> Number`             | Attempts to parse the given `value` into a number. If `value` is already a number, it's returned directly. If `value` is a string that represents a valid number, it's converted and returned. Throws a runtime error if the string cannot be parsed into a number or if more/less than one argument is provided. |
-| `len(collection: Any) -> Number`                | Returns the length of a string or the number of elements in a list. Throws an error if the argument is not a string or list.
+| `Len(collection: List \| String) -> Number`                | Returns the length of a string or the number of elements in a list. Throws an error if the argument is not a string or list.
 
 Example:
 ```aleng

@@ -217,7 +217,7 @@ dataList = []
 
 #### Arithmetic Operators
 
-For `NUMBER` operands:
+For `Number` operands:
 *   `+`: Addition
 *   `-`: Subtraction
 *   `*`: Multiplication
@@ -230,20 +230,20 @@ product = 4 * 6      # 24.0
 quotient = 10 / 4    # 2.5
 ```
 
-Special behavior with `STRING` and `NUMBER`:
-*   `STRING + STRING`: Concatenation
+Special behavior with `String` and `Number`:
+*   `String + String`: Concatenation
     ```aleng
     greeting = "Hello, " + "world!" # "Hello, world!"
     ```
-*   `STRING + NUMBER` (or `NUMBER + STRING`): Concatenation (number is converted to string)
+*   `String + Number` (or `Number + String`): Concatenation (number is converted to string)
     ```aleng
     label = "Value: " + 100 # "Value: 100"
     ```
-*   `STRING * NUMBER`: String repetition
+*   `String * Number`: String repetition
     ```aleng
     stars = "*" * 5 # "*****"
     ```
-*   `LIST + LIST`: List concatenation
+*   `List + List`: List concatenation
     ```aleng
     list1 = [1, 2]
     list2 = [3, 4]
@@ -476,10 +476,10 @@ Describe([1,2])     # "The item is: [1, 2]"
 
 #### Typed Parameters
 
-You can optionally specify a type for a parameter using a colon (`:`) followed by the type name (`NUMBER`, `STRING`, `BOOLEAN`, `LIST`, `ANY`). If a type is specified, Aleng will perform a runtime type check when the function is called. If the argument's type doesn't match, a runtime error will occur. `ANY` skips the type check for that parameter.
+You can optionally specify a type for a parameter using a colon (`:`) followed by the type name (`Number`, `String`, `Boolean`, `List`, `Any`). If a type is specified, Aleng will perform a runtime type check when the function is called. If the argument's type doesn't match, a runtime error will occur. `Any` skips the type check for that parameter.
 
 ```aleng
-Fn WelcomeUser(name: STRING, age: NUMBER, data: LIST)
+Fn WelcomeUser(name: String, age: Number, data: List)
     Print("Welcome, " + name + "! You are " + age + " years old.")
     Print("Data received: " + data)
 End
@@ -492,7 +492,7 @@ WelcomeUser("Alice", 30, [10, 20]) # OK
 
 #### Variadic Parameters
 
-A function can accept a variable number of arguments using the `$` prefix on the *last* parameter. This parameter will "collect" all remaining arguments passed to the function into a list. An optional type can also be specified for variadic parameters (e.g., `$values: NUMBER`), in which case all collected arguments must match that type before being put into the list.
+A function can accept a variable number of arguments using the `$` prefix on the *last* parameter. This parameter will "collect" all remaining arguments passed to the function into a list. An optional type can also be specified for variadic parameters (e.g., `$values: Number`), in which case all collected arguments must match that type before being put into the list.
 
 ```aleng
 Fn PrintAll($items) # $items will be a list of all passed arguments
@@ -502,7 +502,7 @@ Fn PrintAll($items) # $items will be a list of all passed arguments
     End
 End
 
-Fn SumNumbers(initialValue: NUMBER, $values: NUMBER)
+Fn SumNumbers(initialValue: Number, $values: Number)
     # $values will be a list containing only numbers
     currentSum = initialValue
     For val in values
@@ -545,11 +545,11 @@ Fn GetValue()
     x * 2 # This value (200.0) will be returned
 End
 
-Fn GetGreeting(name: STRING)
+Fn GetGreeting(name: String)
     "Hello, " + name + "!" # This string is returned
 End
 
-Fn IsPositive(num: NUMBER)
+Fn IsPositive(num: Number)
     num > 0 # This boolean (true/false) is returned
 End
 
@@ -611,12 +611,12 @@ Aleng provides a set of built-in functions:
 | Function                                        | Description                                                                                                                               |
 | :---------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------- |
 | `Print(arg1, arg2, ...)`                        | Prints one or more arguments to the console. Arguments are converted to strings if necessary. Each argument is printed on a new line.         |
-| `IsString(value: ANY) -> BOOLEAN`               | Checks if the provided `value` is a string. Returns `true` or `false`.                                                                    |
-| `IsNumber(value: ANY) -> BOOLEAN`               | Checks if the provided `value` is a number. Returns `true` or `false`.                                                                    |
-| `IsBoolean(value: ANY) -> BOOLEAN`              | Checks if the provided `value` is a boolean. Returns `true` or `false`.                                                                   |
-| `IsList(value: ANY) -> BOOLEAN`                 | Checks if the provided `value` is a list. Returns `true` or `false`.                                                                      |
-| `ParseNumber(value: ANY) -> NUMBER`             | Attempts to parse the given `value` into a number. If `value` is already a number, it's returned directly. If `value` is a string that represents a valid number, it's converted and returned. Throws a runtime error if the string cannot be parsed into a number or if more/less than one argument is provided. |
-| `len(collection: ANY) -> NUMBER`                | Returns the length of a string or the number of elements in a list. Throws an error if the argument is not a string or list.
+| `IsString(value: Any) -> Boolean`               | Checks if the provided `value` is a string. Returns `true` or `false`.                                                                    |
+| `IsNumber(value: Any) -> Boolean`               | Checks if the provided `value` is a number. Returns `true` or `false`.                                                                    |
+| `IsBoolean(value: Any) -> Boolean`              | Checks if the provided `value` is a boolean. Returns `true` or `false`.                                                                   |
+| `IsList(value: Any) -> Boolean`                 | Checks if the provided `value` is a list. Returns `true` or `false`.                                                                      |
+| `ParseNumber(value: Any) -> Number`             | Attempts to parse the given `value` into a number. If `value` is already a number, it's returned directly. If `value` is a string that represents a valid number, it's converted and returned. Throws a runtime error if the string cannot be parsed into a number or if more/less than one argument is provided. |
+| `len(collection: Any) -> Number`                | Returns the length of a string or the number of elements in a list. Throws an error if the argument is not a string or list.
 
 Example:
 ```aleng
@@ -710,7 +710,7 @@ Print("Is valid: " + isValid)
 **Example 2: Functions, Conditions, and Lists**
 ```aleng
 # main.aleng
-Fn CheckAge(userAge: NUMBER)
+Fn CheckAge(userAge: Number)
     If userAge >= 18 And userAge < 65
         Print("Adult")
     Else If userAge >= 65
@@ -720,7 +720,7 @@ Fn CheckAge(userAge: NUMBER)
     End
 End
 
-Fn GetFullName(first: STRING, last: STRING)
+Fn GetFullName(first: String, last: String)
     first + " " + last
 End
 
@@ -753,7 +753,7 @@ Module "utils"
 Print("Accessing PI from utils: " + PI)
 SayGoodbye()
 
-Fn CalculateCircumference(radius: NUMBER)
+Fn CalculateCircumference(radius: Number)
     2 * PI * radius # Uses PI from the utils module
 End
 

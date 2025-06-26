@@ -121,6 +121,12 @@ namespace Aleng
                 PrintEvaluatedValue(arg);
             return 0.0; }));
 
+        m_Functions.emplace("PrintRaw", Callable([&](Visitor &visitor, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
+                                                 {
+            for (auto &arg : args)
+                PrintEvaluatedValue(arg, true);
+            return 0.0; }));
+
         m_Functions.emplace("IsString", Callable([&](Visitor &visitor, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
                                                  {
             bool isString = true;
@@ -191,6 +197,109 @@ namespace Aleng
         return latestResult;
     }
 
+    EvaluatedValue Visitor::Visit(const ForStatementNode &node)
+    {
+        EvaluatedValue lastResult = 0.0;
+        PushScope();
+
+        if (node.Type == ForStatementNode::LoopType::NUMERIC && node.NumericLoopInfo)
+        {
+            const auto &info = *node.NumericLoopInfo;
+            auto startVal = info.StartExpression->Accept(*this);
+            auto endVal = info.EndExpression->Accept(*this);
+            EvaluatedValue stepValRaw;
+            double step = 1.0;
+
+            if (info.StepExpression)
+            {
+                stepValRaw = info.StepExpression->Accept(*this);
+                if (auto pStep = std::get_if<double>(&stepValRaw))
+                    step = *pStep;
+                else
+                {
+                    PopScope();
+                    throw std::runtime_error("Step value in For loop must be a number.");
+                }
+            }
+
+            if (auto pStart = std::get_if<double>(&startVal))
+            {
+                if (auto pEnd = std::get_if<double>(&endVal))
+                {
+                    double current = *pStart;
+                    double limit = *pEnd;
+
+                    if (step == 0)
+                    {
+                        PopScope();
+                        throw std::runtime_error("Step value in For loop cannot be zero.");
+                    }
+
+                    if (!info.StepExpression && current > limit)
+                    {
+                        step = -1.0;
+                    }
+
+                    auto loopCondition = [&](double curr)
+                    {
+                        if (step > 0)
+                        {
+                            return info.IsUntil ? (curr < limit) : (curr <= limit);
+                        }
+                        else
+                        {
+                            return info.IsUntil ? (curr > limit) : (curr >= limit);
+                        }
+                    };
+
+                    for (; loopCondition(current); current += step)
+                    {
+                        DefineVariable(info.IteratorVariableName, current);
+                        lastResult = node.Body->Accept(*this);
+                    }
+                }
+                else
+                {
+                    PopScope();
+                    throw std::runtime_error("End value in numeric For loop must be a number.");
+                }
+            }
+            else
+            {
+                PopScope();
+                throw std::runtime_error("Start value in numeric For loop must be a number.");
+            }
+        }
+        else if (node.Type == ForStatementNode::LoopType::COLLECTION && node.CollectionLoopInfo)
+        {
+            const auto &info = *node.CollectionLoopInfo;
+
+            EvaluatedValue collection = info.CollectionExpression->Accept(*this);
+            if (auto pList = std::get_if<std::shared_ptr<ListRecursiveWrapper>>(&collection))
+            {
+                for (const auto &item : (*pList)->elements)
+                {
+                    DefineVariable(info.IteratorVariableName, item);
+                    lastResult = node.Body->Accept(*this);
+                }
+            }
+            else
+            {
+                PopScope();
+                throw std::runtime_error("For loop collection must be a List (Maps not supported yet).");
+            }
+        }
+        else
+        {
+            // Estado inválido do nó
+            PopScope();
+            throw std::runtime_error("Invalid ForStatementNode encountered during visitation.");
+        }
+
+        PopScope();
+        return lastResult;
+    }
+
     EvaluatedValue Visitor::Visit(const IfNode &node)
     {
         EvaluatedValue conditionResult = node.Condition->Accept(*this);
@@ -233,12 +342,7 @@ namespace Aleng
     }
     EvaluatedValue Visitor::Visit(const IdentifierNode &node)
     {
-        for (const auto &pair : m_SymbolTableStack.back())
-            if (pair.first == node.Value)
-                return pair.second;
-
-        throw std::runtime_error("Identifier \"" + node.Value + "\" not defined");
-        return static_cast<EvaluatedValue>(node.Value);
+        return LookupVariable(node.Value);
     }
     EvaluatedValue Visitor::Visit(const ListAccessNode &node)
     {

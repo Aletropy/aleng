@@ -31,7 +31,7 @@ namespace Aleng
         bool,
         std::shared_ptr<ListRecursiveWrapper>>;
 
-    void PrintEvaluatedValue(const EvaluatedValue &value);
+    void PrintEvaluatedValue(const EvaluatedValue &value, bool raw = false);
 
     struct ListRecursiveWrapper
     {
@@ -171,6 +171,112 @@ namespace Aleng
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
+    };
+
+    struct ForNumericRange
+    {
+        std::string IteratorVariableName;
+        NodePtr StartExpression;
+        NodePtr EndExpression;
+        NodePtr StepExpression;
+        bool IsUntil;
+
+        ForNumericRange(std::string name, NodePtr start, NodePtr end, NodePtr step, bool until)
+            : IteratorVariableName(std::move(name)), StartExpression(std::move(start)),
+              EndExpression(std::move(end)), StepExpression(std::move(step)), IsUntil(until) {}
+
+        ForNumericRange(const ForNumericRange &other)
+            : IteratorVariableName(other.IteratorVariableName),
+              StartExpression(other.StartExpression ? other.StartExpression->Clone() : nullptr),
+              EndExpression(other.EndExpression ? other.EndExpression->Clone() : nullptr),
+              StepExpression(other.StepExpression ? other.StepExpression->Clone() : nullptr),
+              IsUntil(other.IsUntil) {}
+    };
+
+    struct ForCollectionRange
+    {
+        std::string IteratorVariableName;
+        NodePtr CollectionExpression;
+
+        ForCollectionRange(std::string name, NodePtr collection)
+            : IteratorVariableName(std::move(name)), CollectionExpression(std::move(collection)) {}
+
+        ForCollectionRange(const ForCollectionRange &other)
+            : IteratorVariableName(other.IteratorVariableName),
+              CollectionExpression(other.CollectionExpression ? other.CollectionExpression->Clone() : nullptr) {}
+    };
+
+    struct ForStatementNode : ASTNode
+    {
+        enum class LoopType
+        {
+            NUMERIC,
+            COLLECTION
+        };
+        LoopType Type;
+
+        std::optional<ForNumericRange> NumericLoopInfo;
+        std::optional<ForCollectionRange> CollectionLoopInfo;
+
+        NodePtr Body;
+
+        ForStatementNode(ForNumericRange numericInfo, NodePtr body)
+            : Type(LoopType::NUMERIC), NumericLoopInfo(std::move(numericInfo)), Body(std::move(body)) {}
+
+        ForStatementNode(ForCollectionRange collectionInfo, NodePtr body)
+            : Type(LoopType::COLLECTION), CollectionLoopInfo(std::move(collectionInfo)), Body(std::move(body)) {}
+
+        void Print(std::ostream &os) const override
+        {
+            os << "For ";
+            if (Type == LoopType::NUMERIC && NumericLoopInfo)
+            {
+                os << NumericLoopInfo->IteratorVariableName << " = ";
+                NumericLoopInfo->StartExpression->Print(os);
+                os << (NumericLoopInfo->IsUntil ? " until " : " .. ");
+                NumericLoopInfo->EndExpression->Print(os);
+                if (NumericLoopInfo->StepExpression)
+                {
+                    os << " step ";
+                    NumericLoopInfo->StepExpression->Print(os);
+                }
+            }
+            else if (Type == LoopType::COLLECTION && CollectionLoopInfo)
+            {
+                os << CollectionLoopInfo->IteratorVariableName << " in ";
+                CollectionLoopInfo->CollectionExpression->Print(os);
+            }
+            os << " {\n";
+            if (Body)
+                Body->Print(os);
+            os << "\n} End";
+        }
+
+        NodePtr Clone() const override
+        {
+            if (Type == LoopType::NUMERIC && NumericLoopInfo)
+            {
+                ForNumericRange clonedNumericInfo = {
+                    NumericLoopInfo->IteratorVariableName,
+                    NumericLoopInfo->StartExpression ? NumericLoopInfo->StartExpression->Clone() : nullptr,
+                    NumericLoopInfo->EndExpression ? NumericLoopInfo->EndExpression->Clone() : nullptr,
+                    NumericLoopInfo->StepExpression ? NumericLoopInfo->StepExpression->Clone() : nullptr,
+                    NumericLoopInfo->IsUntil};
+                return std::make_unique<ForStatementNode>(
+                    std::move(clonedNumericInfo), Body ? Body->Clone() : nullptr);
+            }
+            else if (Type == LoopType::COLLECTION && CollectionLoopInfo)
+            {
+                ForCollectionRange clonedCollectionInfo = {
+                    CollectionLoopInfo->IteratorVariableName,
+                    CollectionLoopInfo->CollectionExpression ? CollectionLoopInfo->CollectionExpression->Clone() : nullptr};
+                return std::make_unique<ForStatementNode>(
+                    std::move(clonedCollectionInfo), Body ? Body->Clone() : nullptr);
+            }
+            throw std::runtime_error("Invalid ForStatementNode state for cloning.");
+        }
+
+        EvaluatedValue Accept(Visitor &visitor) const override; // Implementar em AST.cpp
     };
 
     struct FunctionDefinitionNode : ASTNode

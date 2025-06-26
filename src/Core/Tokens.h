@@ -25,6 +25,7 @@ namespace Aleng
         DIVIDE,
         GREATER,
         MINOR,
+        RANGE, // ..
 
         COMMA,
         COLON,
@@ -37,6 +38,9 @@ namespace Aleng
         ELSE,
         FOR,
         WHILE,
+        IN,
+        UNTIL,
+        STEP,
         FUNCTION,
         END,
         MODULE,

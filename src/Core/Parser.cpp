@@ -27,13 +27,11 @@ namespace Aleng
         auto token = m_Tokens[m_Index];
 
         if (token.Type == TokenType::IF)
-        {
             return ParseIfStatement();
-        }
-        if (token.Type == TokenType::FUNCTION)
-        {
+        else if (token.Type == TokenType::FUNCTION)
             return ParseFunctionDefinition();
-        }
+        else if (token.Type == TokenType::FOR)
+            return ParseForStatement();
 
         auto expr = Expression();
         return expr;
@@ -77,6 +75,85 @@ namespace Aleng
 
         return std::make_unique<IfNode>(
             std::move(condition), std::move(thenBranch), std::move(elseBranch));
+    }
+
+    NodePtr Parser::ParseForStatement()
+    {
+        m_Index++;
+
+        if (m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
+            throw std::runtime_error("Expected iterator variable name after 'For'.");
+
+        std::string iteratorVarName = m_Tokens[m_Index].Value;
+        m_Index++;
+
+        if (m_Index >= m_Tokens.size())
+            throw std::runtime_error("Unexpected end of input after For <iterator>.");
+
+        NodePtr body;
+        std::vector<NodePtr> bodyStatements;
+
+        if (m_Tokens[m_Index].Type == TokenType::ASSIGN)
+        {
+            m_Index++;
+
+            NodePtr startExpr = Expression();
+            bool isUntil = false;
+            NodePtr endExpr;
+            NodePtr stepExpr = nullptr;
+
+            if (m_Tokens[m_Index].Type == TokenType::RANGE)
+            {
+                m_Index++;
+                isUntil = false;
+            }
+            else if (m_Tokens[m_Index].Type == TokenType::UNTIL)
+            {
+                m_Index++;
+                isUntil = true;
+            }
+            else
+            {
+                throw std::runtime_error("Expected '..' or 'until' in For loop range.");
+            }
+
+            endExpr = Expression();
+
+            if (m_Tokens[m_Index].Type == TokenType::STEP)
+            {
+                m_Index++;
+                stepExpr = Expression();
+            }
+
+            while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END)
+                bodyStatements.push_back(Statement());
+            if (m_Tokens[m_Index].Type != TokenType::END)
+                throw std::runtime_error("Expected 'End' to close 'For' statement.");
+
+            m_Index++;
+            body = std::make_unique<BlockNode>(std::move(bodyStatements));
+
+            ForNumericRange numericInfo = {iteratorVarName, std::move(startExpr), std::move(endExpr), std::move(stepExpr), isUntil};
+            return std::make_unique<ForStatementNode>(numericInfo, std::move(body));
+        }
+        else if (m_Tokens[m_Index].Type == TokenType::IN)
+        {
+            m_Index++;
+            NodePtr collectionExpr = Expression();
+
+            while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END)
+                bodyStatements.push_back(Statement());
+            if (m_Tokens[m_Index].Type != TokenType::END)
+                throw std::runtime_error("Expected 'End' to close 'For' statement.");
+
+            m_Index++;
+            body = std::make_unique<BlockNode>(std::move(bodyStatements));
+
+            ForCollectionRange collectionInfo = {iteratorVarName, std::move(collectionExpr)};
+            return std::make_unique<ForStatementNode>(collectionInfo, std::move(body));
+        }
+        else
+            throw std::runtime_error("Expected '=' or 'in' after iterator variable in For loop.");
     }
 
     NodePtr Parser::ParseFunctionDefinition()

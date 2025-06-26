@@ -15,6 +15,7 @@ namespace Aleng
         NodePtr Statement();
         NodePtr ParseBlock();
         NodePtr ParseIfStatement();
+        NodePtr ParseForStatement();
         NodePtr ParseFunctionDefinition();
         NodePtr ParseListLiteral();
         NodePtr Expression();

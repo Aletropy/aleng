@@ -44,6 +44,9 @@ namespace Aleng
 
             if (m_Input[m_Index] == '.')
             {
+                if (m_Index + 1 < m_Input.length() && m_Input[m_Index + 1] == '.')
+                    return {TokenType::INTEGER, value};
+
                 m_Index++;
                 value += ".";
                 while (m_Index < m_Input.length() && std::isdigit(m_Input[m_Index]))
@@ -86,6 +89,12 @@ namespace Aleng
                 return {TokenType::TRUE, value};
             else if (value == "False")
                 return {TokenType::FALSE, value};
+            else if (value == "in")
+                return {TokenType::IN, value};
+            else if (value == "until")
+                return {TokenType::UNTIL, value};
+            else if (value == "step")
+                return {TokenType::STEP, value};
 
             return {TokenType::IDENTIFIER, value};
         }
@@ -94,6 +103,15 @@ namespace Aleng
         {
             m_Index++;
             return {TokenType::DOLLAR, '$'};
+        }
+
+        if (c == '.')
+        {
+            if (m_Index + 1 < m_Input.length() && m_Input[m_Index] == '.')
+            {
+                m_Index += 2;
+                return {TokenType::RANGE, ".."};
+            }
         }
 
         if (c == '"')

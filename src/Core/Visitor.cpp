@@ -413,7 +413,7 @@ namespace Aleng
         auto left = node.Left->Accept(*this);
         auto right = node.Right->Accept(*this);
 
-        EvaluatedValue result = false;
+        bool result = false;
 
         std::visit(
             overloads{
@@ -421,23 +421,22 @@ namespace Aleng
                 {
                     if (l == r)
                         result = true;
-                    else if (l != r && node.Inverse)
-                        result = true;
                 },
                 [&](std::string l, std::string r)
                 {
                     if (l == r)
                         result = true;
-                    else if (l != r && node.Inverse)
-                        result = true;
                 },
                 [&](auto &l, auto &r)
                 {
-                    result = node.Inverse ? true : false;
+                    result = true;
                 }},
             left, right);
 
-        return result;
+        if (node.Inverse)
+            return !result;
+        else
+            return result;
     }
 
     EvaluatedValue Visitor::Visit(const FunctionDefinitionNode &node)

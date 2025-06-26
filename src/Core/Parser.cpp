@@ -158,9 +158,47 @@ namespace Aleng
         return std::make_unique<BlockNode>(std::move(statements));
     }
 
+    NodePtr Parser::ParseListLiteral()
+    {
+        m_Index++;
+        std::vector<NodePtr> elements;
+        bool expectComma = false;
+
+        if (m_Tokens[m_Index].Type != TokenType::RBRACE)
+        {
+            do
+            {
+                if (expectComma)
+                {
+                    if (m_Tokens[m_Index].Type != TokenType::COMMA)
+                        throw std::runtime_error("Expected ',' or ']' in list literal.");
+                    m_Index++;
+                }
+                elements.push_back(Expression());
+                expectComma = true;
+            } while (m_Tokens[m_Index].Type == TokenType::COMMA);
+        }
+
+        if (m_Tokens[m_Index].Type != TokenType::RBRACE)
+            throw std::runtime_error("Expected ']' to close list literal");
+        m_Index++;
+        return std::make_unique<ListNode>(std::move(elements));
+    }
+
     NodePtr Parser::Expression()
     {
         auto left = AddictiveExpression();
+
+        if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::ASSIGN)
+        {
+            if (!dynamic_cast<IdentifierNode *>(left.get()) && !dynamic_cast<ListAccessNode *>(left.get()))
+                throw std::runtime_error("Invalid left-hand side in assignment expression.");
+
+            m_Index++;
+            NodePtr right = Expression();
+            return std::make_unique<AssignExpressionNode>(
+                std::move(left), std::move(right));
+        }
 
         while (m_Index < m_Tokens.size() && (m_Tokens[m_Index].Type == TokenType::EQUALS))
         {
@@ -206,34 +244,73 @@ namespace Aleng
     NodePtr Parser::Factor()
     {
         auto token = m_Tokens[m_Index];
+        NodePtr primaryExpr = nullptr;
 
-        if (token.Type == TokenType::INTEGER)
+        if (token.Type == TokenType::TRUE)
         {
             m_Index++;
-            return std::make_unique<IntegerNode>(std::stoi(token.Value));
+            primaryExpr = std::make_unique<BooleanNode>(true);
         }
-        if (token.Type == TokenType::FLOAT)
+        else if (token.Type == TokenType::FALSE)
         {
             m_Index++;
-            return std::make_unique<FloatNode>(std::stof(token.Value));
+            primaryExpr = std::make_unique<BooleanNode>(false);
+        }
+        else if (token.Type == TokenType::INTEGER)
+        {
+            m_Index++;
+            primaryExpr = std::make_unique<IntegerNode>(std::stoi(token.Value));
+        }
+        else if (token.Type == TokenType::FLOAT)
+        {
+            m_Index++;
+            primaryExpr = std::make_unique<FloatNode>(std::stof(token.Value));
         }
 
-        if (token.Type == TokenType::STRING)
+        else if (token.Type == TokenType::STRING)
         {
             m_Index++;
-            return std::make_unique<StringNode>(token.Value);
+            primaryExpr = std::make_unique<StringNode>(token.Value);
         }
-
-        if (token.Type == TokenType::IDENTIFIER)
+        else if (token.Type == TokenType::LBRACE)
+            primaryExpr = ParseListLiteral();
+        else if (token.Type == TokenType::LPAREN)
         {
             m_Index++;
-            if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::ASSIGN)
+            auto expr = Expression();
+            if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::RPAREN)
+                throw std::runtime_error("Expected ')'");
+            m_Index++;
+            primaryExpr = std::move(expr);
+        }
+        else if (token.Type == TokenType::MINUS)
+        {
+            m_Index++;
+            NodePtr operand = Factor();
+            auto zero = std::make_unique<IntegerNode>(0);
+            primaryExpr = std::make_unique<BinaryExpressionNode>(TokenType::MINUS, std::move(zero), std::move(operand));
+        }
+        else if (token.Type == TokenType::IDENTIFIER)
+        {
+            m_Index++;
+            primaryExpr = std::make_unique<IdentifierNode>(token.Value);
+        }
+        else if (token.Type == TokenType::MODULE)
+        {
+            m_Index++;
+            if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::STRING)
             {
-                m_Index++;
-                auto right = Expression();
-                return std::make_unique<AssignExpressionNode>(token.Value, std::move(right));
+                auto pathStr = m_Tokens[m_Index++].Value;
+                return std::make_unique<ImportModuleNode>(pathStr);
             }
-            if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::LPAREN)
+            throw std::runtime_error("Expected module name after 'module' keyword.");
+        }
+        else
+            throw std::runtime_error("Unexpected token: " + token.Value);
+
+        while (m_Index < m_Tokens.size())
+        {
+            if (m_Tokens[m_Index].Type == TokenType::LPAREN)
             {
                 m_Index++;
                 std::vector<NodePtr> args;
@@ -254,44 +331,28 @@ namespace Aleng
                     throw std::runtime_error("Expected ')' after function arguments.");
 
                 m_Index++;
-                return std::make_unique<FunctionCallNode>(token.Value, std::move(args));
+
+                auto funcNameNode = dynamic_cast<IdentifierNode *>(primaryExpr.get());
+
+                if (!funcNameNode)
+                    throw std::runtime_error("Expression before '(' is not a valid function name.");
+
+                primaryExpr = std::make_unique<FunctionCallNode>(funcNameNode->Value, std::move(args));
             }
-
-            return std::make_unique<IdentifierNode>(token.Value);
-        }
-
-        if (token.Type == TokenType::MODULE)
-        {
-            m_Index++;
-
-            if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::STRING)
+            else if (m_Tokens[m_Index].Type == TokenType::LBRACE)
             {
-                auto pathStr = m_Tokens[m_Index++].Value;
-                return std::make_unique<ImportModuleNode>(pathStr);
+                m_Index++;
+                auto indexExpr = Expression();
+                if (m_Tokens[m_Index].Type != TokenType::RBRACE)
+                    throw std::runtime_error("Expected ']' after index expression.");
+                m_Index++;
+                primaryExpr = std::make_unique<ListAccessNode>(std::move(primaryExpr), std::move(indexExpr));
             }
-
-            throw std::runtime_error("Expected module name after 'module' keyword.");
+            else
+                break;
         }
 
-        if (token.Type == TokenType::LPAREN)
-        {
-            m_Index++;
-            auto expr = Expression();
-            if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::RPAREN)
-                throw std::runtime_error("Expected ')'");
-            m_Index++;
-            return expr;
-        }
-
-        if (token.Type == TokenType::MINUS)
-        {
-            m_Index++;
-            NodePtr operand = Factor();
-            auto zero = std::make_unique<IntegerNode>(0);
-            return std::make_unique<BinaryExpressionNode>(TokenType::MINUS, std::move(zero), std::move(operand));
-        }
-
-        throw std::runtime_error("Unexpected token: " + token.Value);
+        return primaryExpr;
     }
 
     Token Parser::Peek()

@@ -23,10 +23,23 @@ namespace Aleng
     std::ostream &operator<<(std::ostream &os, const ASTNode &node);
 
     class Visitor;
+    struct ListRecursiveWrapper;
 
-    using EvaluatedValue = std::variant<double, std::string>;
+    using EvaluatedValue = std::variant<
+        double,
+        std::string,
+        bool,
+        std::shared_ptr<ListRecursiveWrapper>>;
 
     void PrintEvaluatedValue(const EvaluatedValue &value);
+
+    struct ListRecursiveWrapper
+    {
+        std::vector<EvaluatedValue> elements;
+
+        ListRecursiveWrapper() = default;
+        ListRecursiveWrapper(std::vector<EvaluatedValue> elems) : elements(std::move(elems)) {}
+    };
 
     struct ASTNode
     {
@@ -339,21 +352,21 @@ namespace Aleng
 
     struct AssignExpressionNode : ASTNode
     {
-        std::string Left;
+        NodePtr Left;
         NodePtr Right;
 
-        AssignExpressionNode(std::string left, NodePtr right)
+        AssignExpressionNode(NodePtr left, NodePtr right)
             : Left(std::move(left)), Right(std::move(right))
         {
         }
         AssignExpressionNode(const AssignExpressionNode &other)
-            : Left(other.Left),
+            : Left(other.Left ? other.Left->Clone() : nullptr),
               Right(other.Right ? other.Right->Clone() : nullptr) {}
 
         void Print(std::ostream &os) const override
         {
             os << "(";
-            os << Left;
+            os << *Left;
             os << " = ";
             os << *Right;
             os << ")";
@@ -361,8 +374,83 @@ namespace Aleng
 
         NodePtr Clone() const override
         {
-            return std::make_unique<AssignExpressionNode>(Left, Right ? Right->Clone() : nullptr);
+            return std::make_unique<AssignExpressionNode>(
+                Left ? Left->Clone() : nullptr,
+                Right ? Right->Clone() : nullptr);
         }
+
+        EvaluatedValue Accept(Visitor &visitor) const override;
+    };
+
+    struct ListAccessNode : ASTNode
+    {
+        NodePtr Object;
+        NodePtr Index;
+
+        ListAccessNode(NodePtr obj, NodePtr index)
+            : Object(std::move(obj)), Index(std::move(index)) {}
+
+        void Print(std::ostream &os) const override
+        {
+            os << *Object;
+            os << "[";
+            os << *Index;
+            os << "]";
+        }
+
+        NodePtr Clone() const override
+        {
+            return std::make_unique<ListAccessNode>(
+                Object ? Object->Clone() : nullptr,
+                Index ? Index->Clone() : nullptr);
+        }
+
+        EvaluatedValue Accept(Visitor &visitor) const override;
+    };
+
+    struct ListNode : ASTNode
+    {
+        std::vector<NodePtr> Elements;
+        ListNode(std::vector<NodePtr> elements)
+            : Elements(std::move(elements)) {}
+
+        void Print(std::ostream &os) const override
+        {
+            os << "[";
+            for (size_t i = 0; i < Elements.size(); i++)
+            {
+                if (Elements[i])
+                    Elements[i]->Print(os);
+                else
+                    os << "<null_expression>";
+
+                if (i < Elements.size() - 1)
+                    os << ", ";
+            }
+            os << "]";
+        }
+
+        NodePtr Clone() const override
+        {
+            std::vector<NodePtr> clonedElements;
+            for (const auto &elem : Elements)
+            {
+                if (elem)
+                    clonedElements.push_back(elem->Clone());
+            }
+            return std::make_unique<ListNode>(std::move(clonedElements));
+        }
+
+        EvaluatedValue Accept(Visitor &visitor) const override;
+    };
+
+    struct BooleanNode : ASTNode
+    {
+        bool Value;
+        BooleanNode(bool val) : Value(val) {}
+
+        void Print(std::ostream &os) const override { os << (Value ? "true" : "false"); }
+        NodePtr Clone() const override { return std::make_unique<BooleanNode>(Value); }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
     };

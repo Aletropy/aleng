@@ -16,11 +16,15 @@ namespace Aleng
         switch (type)
         {
         case AlengType::NUMBER:
-            return "NUMBER";
+            return "Number";
         case AlengType::STRING:
-            return "STRING";
+            return "String";
+        case AlengType::BOOLEAN:
+            return "Boolean";
+        case AlengType::LIST:
+            return "List";
         case AlengType::ANY:
-            return "ANY";
+            return "Any";
         default:
             return "UNKNOWN_ALENG_TYPE";
         }
@@ -33,13 +37,13 @@ namespace Aleng
     bool Visitor::IsTruthy(const EvaluatedValue &val)
     {
         if (auto pval = std::get_if<double>(&val))
-        {
             return *pval != 0.0;
-        }
-        if (auto sval = std::get_if<std::string>(&val))
-        {
+        else if (auto sval = std::get_if<std::string>(&val))
             return !sval->empty();
-        }
+        else if (auto bval = std::get_if<bool>(&val))
+            return *bval;
+        else if (auto lval = std::get_if<std::shared_ptr<ListRecursiveWrapper>>(&val))
+            return !(*lval)->elements.empty();
 
         return false;
     }
@@ -50,6 +54,10 @@ namespace Aleng
             return AlengType::NUMBER;
         if (std::holds_alternative<std::string>(val))
             return AlengType::STRING;
+        if (std::holds_alternative<bool>(val))
+            return AlengType::BOOLEAN;
+        if (std::holds_alternative<std::shared_ptr<ListRecursiveWrapper>>(val))
+            return AlengType::LIST;
         throw std::runtime_error("Unsupported EvaluatedValue type encountered in GetAlengType.");
     }
 
@@ -197,6 +205,20 @@ namespace Aleng
         return 0.0;
     }
 
+    EvaluatedValue Visitor::Visit(const ListNode &node)
+    {
+        auto listWrapper = std::make_shared<ListRecursiveWrapper>();
+        for (const auto &elemNode : node.Elements)
+        {
+            listWrapper->elements.push_back(elemNode->Accept(*this));
+        }
+        return listWrapper;
+    }
+
+    EvaluatedValue Visitor::Visit(const BooleanNode &node)
+    {
+        return static_cast<EvaluatedValue>(node.Value);
+    }
     EvaluatedValue Visitor::Visit(const IntegerNode &node)
     {
         return EvaluatedValue(static_cast<double>(node.Value));
@@ -218,40 +240,96 @@ namespace Aleng
         throw std::runtime_error("Identifier \"" + node.Value + "\" not defined");
         return static_cast<EvaluatedValue>(node.Value);
     }
+    EvaluatedValue Visitor::Visit(const ListAccessNode &node)
+    {
+        auto listObjectVal = node.Object->Accept(*this);
+        auto indexVal = node.Index->Accept(*this);
+
+        if (auto listWrapperPtr = std::get_if<std::shared_ptr<ListRecursiveWrapper>>(&listObjectVal))
+        {
+            if (auto indexDouble = std::get_if<double>(&indexVal))
+            {
+                int idx = static_cast<int>(*indexDouble);
+                auto &listElements = (*listWrapperPtr)->elements;
+
+                if (idx < 0 || idx >= listElements.size())
+                    throw std::runtime_error("List index " + std::to_string(idx) + " out of bounds for list of size " + std::to_string(listElements.size()));
+
+                return listElements[idx];
+            }
+            else
+                throw std::runtime_error("List index must be a number.");
+        }
+        std::string objectName = "Object";
+        if (auto objIdNode = dynamic_cast<const IdentifierNode *>(node.Object.get()))
+            objectName = "'" + objIdNode->Value + "'";
+        throw std::runtime_error(objectName + " is not a list, cannot perform indexed access.");
+    }
     EvaluatedValue Visitor::Visit(const AssignExpressionNode &node)
     {
-        auto right = node.Right->Accept(*this);
+        auto valueToAssign = node.Right->Accept(*this);
 
-        DefineVariable(std::string(node.Left), right);
+        if (auto idNode = dynamic_cast<const IdentifierNode *>(node.Left.get()))
+        {
+            DefineVariable(idNode->Value, valueToAssign);
+            return valueToAssign;
+        }
+        else if (auto listAccess = dynamic_cast<const ListAccessNode *>(node.Left.get()))
+        {
+            auto listObjectVal = listAccess->Object->Accept(*this);
+            auto indexVal = listAccess->Index->Accept(*this);
 
-        return static_cast<EvaluatedValue>(right);
+            if (auto listWrapperPtr = std::get_if<std::shared_ptr<ListRecursiveWrapper>>(&listObjectVal))
+            {
+                if (auto indexDouble = std::get_if<double>(&indexVal))
+                {
+                    int idx = static_cast<int>(*indexDouble);
+                    auto &listElements = (*listWrapperPtr)->elements;
+                    if (idx < 0 || idx >= listElements.size())
+                        throw std::runtime_error("List index " + std::to_string(idx) + " out of bounds for list of size " + std::to_string(listElements.size()));
+                    listElements[idx] = valueToAssign;
+                    return valueToAssign;
+                }
+                else
+                    throw std::runtime_error("List index must be a number.");
+            }
+            else
+            {
+                std::string objectName = "Object";
+                if (auto objIdNode = dynamic_cast<const IdentifierNode *>(listAccess->Object.get()))
+                    objectName = "'" + objIdNode->Value + "'";
+                throw std::runtime_error(objectName + " is not a list, cannot perform indexed assignment.");
+            }
+        }
+
+        throw std::runtime_error("Invalid left-hand side in assignment.");
     }
     EvaluatedValue Visitor::Visit(const EqualsExpressionNode &node)
     {
         auto left = node.Left->Accept(*this);
         auto right = node.Right->Accept(*this);
 
-        EvaluatedValue result = 0.0;
+        EvaluatedValue result = false;
 
         std::visit(
             overloads{
                 [&](double l, double r)
                 {
                     if (l == r)
-                        result = 1.0;
+                        result = true;
                     else if (l != r && node.Inverse)
-                        result = 1.0;
+                        result = true;
                 },
                 [&](std::string l, std::string r)
                 {
                     if (l == r)
-                        result = 1.0;
+                        result = true;
                     else if (l != r && node.Inverse)
-                        result = 1.0;
+                        result = true;
                 },
                 [&](auto &l, auto &r)
                 {
-                    result = node.Inverse ? 1.0 : 0.0;
+                    result = node.Inverse ? true : false;
                 }},
             left, right);
 
@@ -306,10 +384,12 @@ namespace Aleng
                 if (param.TypeName)
                 {
                     AlengType expectedType;
-                    if (*param.TypeName == "NUMBER")
+                    if (*param.TypeName == "Number")
                         expectedType = AlengType::NUMBER;
-                    else if (*param.TypeName == "STRING")
+                    else if (*param.TypeName == "String")
                         expectedType = AlengType::STRING;
+                    else if (*param.TypeName == "Any")
+                        expectedType = AlengType::ANY;
                     else
                     {
                         PopScope();

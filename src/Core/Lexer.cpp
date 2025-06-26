@@ -11,13 +11,21 @@ namespace Aleng
 
     Token Lexer::Next()
     {
+        while (m_Input[m_Index] == ' ' || m_Input[m_Index] == '\t' || m_Input[m_Index] == '\n')
+        {
+            m_Index++;
+        }
+
         if (m_Index >= m_Input.length())
         {
             return {TokenType::END_OF_FILE, ""};
         }
 
-        while (m_Input[m_Index] == ' ' || m_Input[m_Index] == '\t' || m_Input[m_Index] == '\n')
+        if (m_Input[m_Index] == '#')
         {
+            m_Index++;
+            while (m_Index < m_Input.size() && m_Input[m_Index] != '\n')
+                m_Index++;
             m_Index++;
         }
 
@@ -54,7 +62,7 @@ namespace Aleng
         {
             std::string value = "";
 
-            while (std::isalpha(m_Input[m_Index]))
+            while (std::isalnum(m_Input[m_Index]) || m_Input[m_Index] == '_')
             {
                 value += m_Input[m_Index];
                 m_Index++;
@@ -74,6 +82,10 @@ namespace Aleng
                 return {TokenType::MODULE, value};
             else if (value == "End")
                 return {TokenType::END, value};
+            else if (value == "True")
+                return {TokenType::TRUE, value};
+            else if (value == "False")
+                return {TokenType::FALSE, value};
 
             return {TokenType::IDENTIFIER, value};
         }

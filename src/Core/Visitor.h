@@ -13,6 +13,8 @@ namespace Aleng
     {
         NUMBER,
         STRING,
+        BOOLEAN,
+        LIST,
         ANY
     };
     std::string AlengTypeToString(AlengType type);
@@ -28,10 +30,13 @@ namespace Aleng
         EvaluatedValue Visit(const ProgramNode &node);
         EvaluatedValue Visit(const BlockNode &node);
         EvaluatedValue Visit(const IfNode &node);
+        EvaluatedValue Visit(const ListNode &node);
+        EvaluatedValue Visit(const BooleanNode &node);
         EvaluatedValue Visit(const IntegerNode &node);
         EvaluatedValue Visit(const FloatNode &node);
         EvaluatedValue Visit(const StringNode &node);
         EvaluatedValue Visit(const IdentifierNode &node);
+        EvaluatedValue Visit(const ListAccessNode &node);
         EvaluatedValue Visit(const AssignExpressionNode &node);
         EvaluatedValue Visit(const FunctionDefinitionNode &node);
         EvaluatedValue Visit(const FunctionCallNode &node);

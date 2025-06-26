@@ -41,6 +41,9 @@ namespace Aleng
         END,
         MODULE,
 
+        TRUE,
+        FALSE,
+
         UNKNOWN,
         END_OF_FILE
     };

@@ -23,6 +23,17 @@ namespace Aleng
 
         if (m_Input[m_Index] == '#')
         {
+            if (m_Index + 1 < m_Input.length() && m_Input[m_Index + 1] == '#')
+            {
+                m_Index += 2;
+                while (m_Index < m_Input.size() && m_Input[m_Index] != '#')
+                    m_Index++;
+
+                if (m_Index + 1 >= m_Input.length() || m_Input[m_Index + 1] != '#')
+                    throw std::runtime_error("Expected double '##' to end multiple line comment.");
+                m_Index += 2;
+            }
+
             m_Index++;
             while (m_Index < m_Input.size() && m_Input[m_Index] != '\n')
                 m_Index++;

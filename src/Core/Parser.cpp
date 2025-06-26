@@ -1,5 +1,6 @@
 #include "AST.h"
 #include "Parser.h"
+#include "Error.h"
 
 namespace Aleng
 {
@@ -71,7 +72,7 @@ namespace Aleng
         if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::END)
             m_Index++;
         else
-            throw std::runtime_error("Expected 'end' to close 'if' statement.");
+            throw AlengError("Expected 'end' to close 'if' statement.", m_Tokens[m_Index].Location);
 
         return std::make_unique<IfNode>(
             std::move(condition), std::move(thenBranch), std::move(elseBranch), m_Tokens[m_Index].Location);
@@ -82,13 +83,13 @@ namespace Aleng
         m_Index++;
 
         if (m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
-            throw std::runtime_error("Expected iterator variable name after 'For'.");
+            throw AlengError("Expected iterator variable name after 'For'.", m_Tokens[m_Index].Location);
 
         std::string iteratorVarName = m_Tokens[m_Index].Value;
         m_Index++;
 
         if (m_Index >= m_Tokens.size())
-            throw std::runtime_error("Unexpected end of input after For <iterator>.");
+            throw AlengError("Unexpected end of input after For <iterator>.", m_Tokens[m_Index].Location);
 
         NodePtr body;
         std::vector<NodePtr> bodyStatements;
@@ -114,7 +115,7 @@ namespace Aleng
             }
             else
             {
-                throw std::runtime_error("Expected '..' or 'until' in For loop range.");
+                throw AlengError("Expected '..' or 'until' in For loop range.", m_Tokens[m_Index].Location);
             }
 
             endExpr = Expression();
@@ -128,7 +129,7 @@ namespace Aleng
             while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END)
                 bodyStatements.push_back(Statement());
             if (m_Tokens[m_Index].Type != TokenType::END)
-                throw std::runtime_error("Expected 'End' to close 'For' statement.");
+                throw AlengError("Expected 'End' to close 'For' statement.", m_Tokens[m_Index].Location);
 
             m_Index++;
             body = std::make_unique<BlockNode>(std::move(bodyStatements), m_Tokens[m_Index].Location);
@@ -144,7 +145,7 @@ namespace Aleng
             while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END)
                 bodyStatements.push_back(Statement());
             if (m_Tokens[m_Index].Type != TokenType::END)
-                throw std::runtime_error("Expected 'End' to close 'For' statement.");
+                throw AlengError("Expected 'End' to close 'For' statement.", m_Tokens[m_Index].Location);
 
             body = std::make_unique<BlockNode>(std::move(bodyStatements), m_Tokens[m_Index].Location);
             m_Index++;
@@ -153,7 +154,7 @@ namespace Aleng
             return std::make_unique<ForStatementNode>(collectionInfo, std::move(body), m_Tokens[m_Index].Location);
         }
         else
-            throw std::runtime_error("Expected '=' or 'in' after iterator variable in For loop.");
+            throw AlengError("Expected '=' or 'in' after iterator variable in For loop.", m_Tokens[m_Index].Location);
     }
 
     NodePtr Parser::ParseFunctionDefinition()
@@ -161,19 +162,19 @@ namespace Aleng
         m_Index++;
 
         if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
-            throw std::runtime_error("Expected function name");
+            throw AlengError("Expected function name", m_Tokens[m_Index].Location);
 
         auto nameToken = m_Tokens[m_Index];
         std::string funcName = nameToken.Value;
         if (Peek().Type != TokenType::LPAREN)
-            throw std::runtime_error("Expected '(' after function name");
+            throw AlengError("Expected '(' after function name", m_Tokens[m_Index].Location);
         m_Index += 2;
         std::vector<Parameter> params;
         bool expectComma = false;
         while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::RPAREN)
         {
             if (expectComma && m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::COMMA && m_Tokens[m_Index].Type != TokenType::RPAREN)
-                throw std::runtime_error("Expected ',' between parameters or ')'");
+                throw AlengError("Expected ',' between parameters or ')'", m_Tokens[m_Index].Location);
 
             if (expectComma)
                 m_Index++;
@@ -186,7 +187,7 @@ namespace Aleng
             }
 
             if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
-                throw std::runtime_error("Expected parameter name");
+                throw AlengError("Expected parameter name", m_Tokens[m_Index].Location);
 
             auto paramToken = m_Tokens[m_Index];
             std::string paramName = paramToken.Value;
@@ -197,7 +198,7 @@ namespace Aleng
             if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::COLON)
             {
                 if (Peek().Type != TokenType::IDENTIFIER)
-                    throw std::runtime_error("Expected type name after ':'");
+                    throw AlengError("Expected type name after ':'", m_Tokens[m_Index].Location);
                 m_Index++;
                 auto typeNameToken = m_Tokens[m_Index];
                 typeName = typeNameToken.Value;
@@ -206,7 +207,7 @@ namespace Aleng
 
             params.emplace_back(paramName, typeName, isVariadic);
             if (isVariadic && Peek().Type != TokenType::RPAREN)
-                throw std::runtime_error("Variadic parameter '$" + paramName + "' must be the last parameter.");
+                throw AlengError("Variadic parameter '$" + paramName + "' must be the last parameter.", m_Tokens[m_Index].Location);
             expectComma = true;
         }
 
@@ -248,7 +249,7 @@ namespace Aleng
                 if (expectComma)
                 {
                     if (m_Tokens[m_Index].Type != TokenType::COMMA)
-                        throw std::runtime_error("Expected ',' or ']' in list literal.");
+                        throw AlengError("Expected ',' or ']' in list literal.", m_Tokens[m_Index].Location);
                     m_Index++;
                 }
                 elements.push_back(Expression());
@@ -257,7 +258,7 @@ namespace Aleng
         }
 
         if (m_Tokens[m_Index].Type != TokenType::RBRACE)
-            throw std::runtime_error("Expected ']' to close list literal");
+            throw AlengError("Expected ']' to close list literal", m_Tokens[m_Index].Location);
         m_Index++;
         return std::make_unique<ListNode>(std::move(elements), m_Tokens[m_Index].Location);
     }
@@ -269,7 +270,7 @@ namespace Aleng
         if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::ASSIGN)
         {
             if (!dynamic_cast<IdentifierNode *>(left.get()) && !dynamic_cast<ListAccessNode *>(left.get()))
-                throw std::runtime_error("Invalid left-hand side in assignment expression.");
+                throw AlengError("Invalid left-hand side in assignment expression.", m_Tokens[m_Index].Location);
 
             m_Index++;
             NodePtr right = Statement();
@@ -356,7 +357,7 @@ namespace Aleng
             m_Index++;
             auto expr = Expression();
             if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::RPAREN)
-                throw std::runtime_error("Expected ')'");
+                throw AlengError("Expected ')'", token.Location);
             m_Index++;
             primaryExpr = std::move(expr);
         }
@@ -380,10 +381,10 @@ namespace Aleng
                 auto pathStr = m_Tokens[m_Index++].Value;
                 return std::make_unique<ImportModuleNode>(pathStr, token.Location);
             }
-            throw std::runtime_error("Expected module name after 'module' keyword.");
+            throw AlengError("Expected module name after 'module' keyword.", token.Location);
         }
         else
-            throw std::runtime_error("Unexpected token: " + token.Value);
+            throw AlengError("Unexpected token: " + token.Value, token.Location);
 
         while (m_Index < m_Tokens.size())
         {
@@ -396,7 +397,7 @@ namespace Aleng
                 do
                 {
                     if (expectCommaArgs && m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::COMMA)
-                        throw std::runtime_error("Expected ',' between function arguments");
+                        throw AlengError("Expected ',' between function arguments", token.Location);
                     if (expectCommaArgs)
                         m_Index++;
                     if (m_Tokens[m_Index].Type != TokenType::RPAREN)
@@ -405,7 +406,7 @@ namespace Aleng
                 } while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::COMMA);
 
                 if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::RPAREN)
-                    throw std::runtime_error("Expected ')' after function arguments.");
+                    throw AlengError("Expected ')' after function arguments.", token.Location);
 
                 m_Index++;
 
@@ -416,7 +417,7 @@ namespace Aleng
                 m_Index++;
                 auto indexExpr = Expression();
                 if (m_Tokens[m_Index].Type != TokenType::RBRACE)
-                    throw std::runtime_error("Expected ']' after index expression.");
+                    throw AlengError("Expected ']' after index expression.", token.Location);
                 m_Index++;
                 primaryExpr = std::make_unique<ListAccessNode>(std::move(primaryExpr), std::move(indexExpr), token.Location);
             }

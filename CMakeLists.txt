@@ -10,6 +10,8 @@ find_package(glfw3 REQUIRED)
 
 add_executable(Aleng
     src/main.cpp
+    src/Core/Error.h
+    src/Core/Error.cpp
     src/Core/AST.h
     src/Core/AST.cpp
     src/Core/Tokens.h

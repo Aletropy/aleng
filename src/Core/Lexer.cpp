@@ -1,6 +1,7 @@
 #include "Lexer.h"
 
 #include <iostream>
+#include "Error.h"
 
 namespace Aleng
 {
@@ -54,7 +55,7 @@ namespace Aleng
                 startLoc = {m_Line, m_Column};
 
                 if (m_Index + 1 >= m_Input.length() || m_Input[m_Index + 1] != '#')
-                    throw std::runtime_error("Expected double '##' to end multiple line comment.");
+                    throw AlengError("Expected double '##' to end multiple line comment.", startLoc);
                 advance(2);
                 startLoc = {m_Line, m_Column};
             }
@@ -196,7 +197,7 @@ namespace Aleng
 
             if (m_Input[m_Index] != '"')
             {
-                throw std::runtime_error("Expected string termination.");
+                throw AlengError("Expected string termination.", startLoc);
                 return {TokenType::UNKNOWN, c, startLoc};
             }
 
@@ -224,7 +225,7 @@ namespace Aleng
                 return {TokenType::EQUALS, "!=", startLoc};
             }
 
-            throw std::runtime_error("NOT not supported yet.");
+            throw AlengError("NOT not supported yet.", startLoc);
             return {TokenType::UNKNOWN, "", startLoc};
         }
 

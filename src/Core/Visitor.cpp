@@ -7,6 +7,8 @@
 
 #include "Parser.h"
 
+#include "Error.h"
+
 namespace fs = std::filesystem;
 
 namespace Aleng
@@ -147,14 +149,14 @@ namespace Aleng
         m_Functions.emplace("ParseNumber", Callable([&](Visitor &visitor, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
                                                     {
                                                         if (args.size() != 1)
-                                                            throw std::runtime_error("ParseNumber expects exacts 1 argument");
+                                                            throw AlengError("ParseNumber expects exacts 1 argument", ctx);
                                                         auto& arg = args[0];
                                                         bool isNumber = std::holds_alternative<double>(arg);
                                                         return isNumber ? arg : std::stod(std::get<std::string>(arg)); }));
         m_Functions.emplace("Len", Callable([&](Visitor &, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
                                             {
                 if (args.size() != 1)
-                    throw std::runtime_error("Len expects exacts one argument.");
+                    throw AlengError("Len expects exacts one argument.", ctx);
                 auto objectVal = args[0];
 
                 if (auto pString = std::get_if<std::string>(&objectVal))
@@ -162,13 +164,13 @@ namespace Aleng
                 else if (auto pListWrapper = std::get_if<ListStorage>(&objectVal))
                     return static_cast<double>((*pListWrapper)->elements.size());
 
-                throw std::runtime_error(
-                    "Object of type '" + AlengTypeToString(GetAlengType(objectVal)) + "' not supported for Len function."); }));
+                throw AlengError(
+                    "Object of type '" + AlengTypeToString(GetAlengType(objectVal)) + "' not supported for Len function.", ctx); }));
 
         m_Functions.emplace("Append", Callable([&](Visitor &, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
                                                {
                 if (args.size() < 2)
-                    throw std::runtime_error("Append expects (List, ...).");
+                    throw AlengError("Append expects (List, ...).", ctx);
                 auto objectVal = args[0];
 
                 if (auto pListWrapper = std::get_if<ListStorage>(&objectVal))
@@ -178,12 +180,12 @@ namespace Aleng
                     return *pListWrapper;
                 }
 
-                throw std::runtime_error(
-                    "Object of type '" + AlengTypeToString(GetAlengType(objectVal)) + "' not supported for Append function."); }));
+                throw AlengError(
+                    "Object of type '" + AlengTypeToString(GetAlengType(objectVal)) + "' not supported for Append function.", ctx); }));
         m_Functions.emplace("Pop", Callable([&](Visitor &, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
                                             {
                 if (args.size() != 1)
-                    throw std::runtime_error("Len expects exacts one list as argument.");
+                    throw AlengError("Len expects exacts one list as argument.", ctx);
                 auto objectVal = args[0];
 
                 if (auto pListWrapper = std::get_if<ListStorage>(&objectVal))
@@ -199,8 +201,8 @@ namespace Aleng
                         return false;
                 }
 
-                throw std::runtime_error(
-                    "Object of type '" + AlengTypeToString(GetAlengType(objectVal)) + "' not supported for Pop function."); }));
+                throw AlengError(
+                    "Object of type '" + AlengTypeToString(GetAlengType(objectVal)) + "' not supported for Pop function.", ctx); }));
     }
 
     void Visitor::LoadModuleFiles(std::map<std::string, fs::path> moduleFiles)
@@ -271,7 +273,7 @@ namespace Aleng
                 else
                 {
                     PopScope();
-                    throw std::runtime_error("Step value in For loop must be a number.");
+                    throw AlengError("Step value in For loop must be a number.", node);
                 }
             }
 
@@ -285,7 +287,7 @@ namespace Aleng
                     if (step == 0)
                     {
                         PopScope();
-                        throw std::runtime_error("Step value in For loop cannot be zero.");
+                        throw AlengError("Step value in For loop cannot be zero.", node);
                     }
 
                     if (!info.StepExpression && current > limit)
@@ -314,13 +316,13 @@ namespace Aleng
                 else
                 {
                     PopScope();
-                    throw std::runtime_error("End value in numeric For loop must be a number.");
+                    throw AlengError("End value in numeric For loop must be a number.", node);
                 }
             }
             else
             {
                 PopScope();
-                throw std::runtime_error("Start value in numeric For loop must be a number.");
+                throw AlengError("Start value in numeric For loop must be a number.", node);
             }
         }
         else if (node.Type == ForStatementNode::LoopType::COLLECTION && node.CollectionLoopInfo)
@@ -339,14 +341,13 @@ namespace Aleng
             else
             {
                 PopScope();
-                throw std::runtime_error("For loop collection must be a List (Maps not supported yet).");
+                throw AlengError("For loop collection must be a List (Maps not supported yet).", node);
             }
         }
         else
         {
-            // Estado inválido do nó
             PopScope();
-            throw std::runtime_error("Invalid ForStatementNode encountered during visitation.");
+            throw AlengError("Invalid ForStatementNode encountered during visitation.", node);
         }
 
         PopScope();
@@ -415,7 +416,7 @@ namespace Aleng
             }
         }
 
-        throw std::runtime_error("Identifier \"" + node.Value + "\" not defined as variable or function.");
+        throw AlengError("Identifier \"" + node.Value + "\" not defined as variable or function.", node);
     }
     EvaluatedValue Visitor::Visit(const ListAccessNode &node)
     {
@@ -430,17 +431,17 @@ namespace Aleng
                 auto &listElements = (*listWrapperPtr)->elements;
 
                 if (idx < 0 || idx >= listElements.size())
-                    throw std::runtime_error("List index " + std::to_string(idx) + " out of bounds for list of size " + std::to_string(listElements.size()));
+                    throw AlengError("List index " + std::to_string(idx) + " out of bounds for list of size " + std::to_string(listElements.size()), node);
 
                 return listElements[idx];
             }
             else
-                throw std::runtime_error("List index must be a number.");
+                throw AlengError("List index must be a number.", node);
         }
         std::string objectName = "Object";
         if (auto objIdNode = dynamic_cast<const IdentifierNode *>(node.Object.get()))
             objectName = "'" + objIdNode->Value + "'";
-        throw std::runtime_error(objectName + " is not a list, cannot perform indexed access.");
+        throw AlengError(objectName + " is not a list, cannot perform indexed access.", node);
     }
     EvaluatedValue Visitor::Visit(const AssignExpressionNode &node)
     {
@@ -463,23 +464,23 @@ namespace Aleng
                     int idx = static_cast<int>(*indexDouble);
                     auto &listElements = (*listWrapperPtr)->elements;
                     if (idx < 0 || idx >= listElements.size())
-                        throw std::runtime_error("List index " + std::to_string(idx) + " out of bounds for list of size " + std::to_string(listElements.size()));
+                        throw AlengError("List index " + std::to_string(idx) + " out of bounds for list of size " + std::to_string(listElements.size()), node);
                     listElements[idx] = valueToAssign;
                     return valueToAssign;
                 }
                 else
-                    throw std::runtime_error("List index must be a number.");
+                    throw AlengError("List index must be a number.", node);
             }
             else
             {
                 std::string objectName = "Object";
                 if (auto objIdNode = dynamic_cast<const IdentifierNode *>(listAccess->Object.get()))
                     objectName = "'" + objIdNode->Value + "'";
-                throw std::runtime_error(objectName + " is not a list, cannot perform indexed assignment.");
+                throw AlengError(objectName + " is not a list, cannot perform indexed assignment.", node);
             }
         }
 
-        throw std::runtime_error("Invalid left-hand side in assignment.");
+        throw AlengError("Invalid left-hand side in assignment.", node);
     }
     EvaluatedValue Visitor::Visit(const EqualsExpressionNode &node)
     {
@@ -538,7 +539,7 @@ namespace Aleng
         {
             std::stringstream ss;
             node.CallableExpression->Print(ss);
-            throw std::runtime_error("Expression '" + ss.str() + "' is not callable.");
+            throw AlengError("Expression '" + ss.str() + "' is not callable.", node);
         }
 
         const FunctionObject &funcObj = *pFuncObj;
@@ -551,7 +552,7 @@ namespace Aleng
         if (funcObj.Type == FunctionObject::Type::USER_DEFINED)
         {
             if (!funcObj.UserFuncNodeAst)
-                throw std::runtime_error("Internal error: User-defined FunctionObject has no AST node for '" + funcObj.Name + "'.");
+                throw AlengError("Internal error: User-defined FunctionObject has no AST node for '" + funcObj.Name + "'.", node);
 
             SymbolTableStack callingEnvironment = m_SymbolTableStack;
             m_SymbolTableStack = funcObj.CapturedEnvironment;
@@ -567,7 +568,7 @@ namespace Aleng
                 if (argIdx >= resolvedArgs.size())
                 {
                     PopScope();
-                    throw std::runtime_error("Not enough arguments for function '" + funcDef.FunctionName + "'. Expected parameter '" + param.Name + "'.");
+                    throw AlengError("Not enough arguments for function '" + funcDef.FunctionName + "'. Expected parameter '" + param.Name + "'.", node);
                 }
 
                 const EvaluatedValue &argVal = resolvedArgs[argIdx];
@@ -583,16 +584,17 @@ namespace Aleng
                     else
                     {
                         PopScope();
-                        throw std::runtime_error("Unknown type name '" + *param.TypeName + "' in function '" + funcDef.FunctionName + "' signature for parameter '" + param.Name + "'.");
+                        throw AlengError("Unknown type name '" + *param.TypeName + "' in function '" + funcDef.FunctionName + "' signature for parameter '" + param.Name + "'.", node);
                     }
 
                     AlengType actualType = GetAlengType(argVal);
                     if (actualType != expectedType)
                     {
                         PopScope();
-                        throw std::runtime_error("Type mismatch for parameter '" + param.Name + "' in function '" + funcDef.FunctionName +
-                                                 "'. Expected " + *param.TypeName + " (" + AlengTypeToString(expectedType) +
-                                                 ") but got " + AlengTypeToString(actualType) + ".");
+                        throw AlengError("Type mismatch for parameter '" + param.Name + "' in function '" + funcDef.FunctionName +
+                                             "'. Expected " + *param.TypeName + " (" + AlengTypeToString(expectedType) +
+                                             ") but got " + AlengTypeToString(actualType) + ".",
+                                         node);
                     }
                 }
 
@@ -603,7 +605,7 @@ namespace Aleng
             if (argIdx < resolvedArgs.size())
             {
                 PopScope();
-                throw std::runtime_error("Too many arguments for function '" + funcDef.FunctionName + "'. Expected " + std::to_string(funcDef.Parameters.size()) + " arguments, got " + std::to_string(resolvedArgs.size()) + ".");
+                throw AlengError("Too many arguments for function '" + funcDef.FunctionName + "'. Expected " + std::to_string(funcDef.Parameters.size()) + " arguments, got " + std::to_string(resolvedArgs.size()) + ".", node);
             }
 
             auto result = funcDef.Body->Accept(*this);
@@ -617,16 +619,16 @@ namespace Aleng
             auto builtinIt = m_Functions.find(funcObj.Name);
             if (builtinIt == m_Functions.end() || builtinIt->second.type != Callable::Type::BUILTIN)
             {
-                throw std::runtime_error("Internal error: Built-in function '" + funcObj.Name + "' not found or misconfigured.");
+                throw AlengError("Internal error: Built-in function '" + funcObj.Name + "' not found or misconfigured.", node);
             }
             return builtinIt->second.builtinFunc(*this, resolvedArgs, node);
         }
         else
         {
-            throw std::runtime_error("Internal error: Unknown FunctionObject type.");
+            throw AlengError("Internal error: Unknown FunctionObject type.", node);
         }
 
-        throw std::runtime_error("Internal error: Unknown callable type for function " + funcObj.Name);
+        throw AlengError("Internal error: Unknown callable type for function " + funcObj.Name, node);
     }
 
     EvaluatedValue Visitor::Visit(const ImportModuleNode &node)
@@ -640,7 +642,7 @@ namespace Aleng
         auto path = m_AvailableModules[node.ModuleName];
 
         if (path.empty())
-            throw std::runtime_error("Module '" + node.ModuleName + "' not found.");
+            throw AlengError("Module '" + node.ModuleName + "' not found.", node);
 
         m_ImportedModules.push_back(node.ModuleName);
         ExecuteAlengFile(path.string(), *this);
@@ -672,18 +674,18 @@ namespace Aleng
                         break;
                     case TokenType::DIVIDE:
                         if (r == 0.0)
-                            throw std::runtime_error("Division by 0 is genious! Congratulations!");
+                            throw AlengError("Division by 0  is an error.", node);
                         finalValue = l / r;
                         break;
                     default:
-                        throw std::runtime_error("Unknown operator for binary expression: " + TokenTypeToString(node.Operator));
+                        throw AlengError("Unknown operator for binary expression: " + TokenTypeToString(node.Operator), node);
                         break;
                     }
                 },
                 [&](std::string l, std::string r)
                 {
                     if (node.Operator != TokenType::PLUS)
-                        throw std::runtime_error("Only concatenation operator for strings supported.");
+                        throw AlengError("Only concatenation operator for strings supported.", node);
                     finalValue = l + r;
                     return;
                 },
@@ -704,15 +706,16 @@ namespace Aleng
                         finalValue = ss.str();
                         break;
                     default:
-                        throw std::runtime_error("Unknown operator for binary expression: " + TokenTypeToString(node.Operator));
+                        throw AlengError("Unknown operator for binary expression: " + TokenTypeToString(node.Operator), node);
                         break;
                     }
                 },
                 [&](auto &l, auto &r)
                 {
-                    throw std::runtime_error("Unsupported operand types for operator " + TokenTypeToString(node.Operator) +
-                                             ". Left type index: " + std::to_string(left.index()) +
-                                             ", Right type index: " + std::to_string(right.index()));
+                    throw AlengError("Unsupported operand types for operator " + TokenTypeToString(node.Operator) +
+                                         ". Left type index: " + std::to_string(left.index()) +
+                                         ", Right type index: " + std::to_string(right.index()),
+                                     node);
                 }},
             left, right);
         return finalValue;

@@ -1,6 +1,8 @@
 #include <iostream>
+
 #include "Core/Visitor.h"
 #include "Core/Parser.h"
+#include "Core/Error.h"
 
 #include <filesystem>
 #include <map>
@@ -34,9 +36,14 @@ void RunREPL(Visitor &visitor)
 
             auto result = ast->Accept(visitor);
         }
-        catch (std::runtime_error err)
+        catch (const AlengError &err)
         {
-            std::cout << "Error: " << err.what() << std::endl;
+            std::string sourceCode = ss.str();
+            PrintFormattedError(err, sourceCode, "REPL");
+        }
+        catch (const std::runtime_error &err)
+        {
+            std::cout << "FATAL ERROR: " << err.what() << std::endl;
         }
     }
 }
@@ -149,9 +156,24 @@ int main(int argc, char *argv[])
             return 1;
         }
     }
+    catch (const AlengError &err)
+    {
+        std::string sourceCode = "";
+        std::string filepath = "";
+        if (!resolvedMainFilePath.empty())
+        {
+            std::ifstream file(resolvedMainFilePath);
+            std::stringstream buffer;
+            buffer << file.rdbuf();
+            sourceCode = buffer.str();
+            filepath = resolvedMainFilePath.string();
+        }
+
+        PrintFormattedError(err, sourceCode, filepath);
+    }
     catch (const std::runtime_error &err)
     {
-        std::cerr << "Runtime Error: " << err.what() << std::endl;
+        std::cerr << "FATAL: " << err.what() << std::endl;
         return 1;
     }
 }

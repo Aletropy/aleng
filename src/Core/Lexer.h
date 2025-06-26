@@ -18,5 +18,7 @@ namespace Aleng
     private:
         std::string m_Input;
         int m_Index = 0;
+        int m_Line = 1;
+        int m_Column = 1;
     };
 }

@@ -53,6 +53,8 @@ namespace Aleng
 
     struct ASTNode
     {
+        TokenLocation Location;
+
         ASTNode() = default;
         virtual ~ASTNode() = default;
 
@@ -112,9 +114,10 @@ namespace Aleng
     struct BlockNode : ASTNode
     {
         std::vector<NodePtr> Statements;
-        BlockNode(std::vector<NodePtr> stmts)
+        BlockNode(std::vector<NodePtr> stmts, TokenLocation loc)
             : Statements(std::move(stmts))
         {
+            this->Location = loc;
         }
 
         void Print(std::ostream &os) const override
@@ -137,7 +140,7 @@ namespace Aleng
                 if (stmt)
                     clonedStatements.push_back(stmt->Clone());
             }
-            return std::make_unique<BlockNode>(std::move(clonedStatements));
+            return std::make_unique<BlockNode>(std::move(clonedStatements), Location);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -149,14 +152,18 @@ namespace Aleng
         NodePtr ThenBranch;
         NodePtr ElseBranch;
 
-        IfNode(NodePtr cond, NodePtr thenB, NodePtr elseB = nullptr)
+        IfNode(NodePtr cond, NodePtr thenB, NodePtr elseB, TokenLocation loc)
             : Condition(std::move(cond)), ThenBranch(std::move(thenB)), ElseBranch(std::move(elseB))
         {
+            this->Location = loc;
         }
         IfNode(const IfNode &other)
             : Condition(other.Condition ? other.Condition->Clone() : nullptr),
               ThenBranch(other.ThenBranch ? other.ThenBranch->Clone() : nullptr),
-              ElseBranch(other.ElseBranch ? other.ElseBranch->Clone() : nullptr) {}
+              ElseBranch(other.ElseBranch ? other.ElseBranch->Clone() : nullptr)
+        {
+            this->Location = other.Location;
+        }
 
         void Print(std::ostream &os) const override
         {
@@ -177,7 +184,7 @@ namespace Aleng
             return std::make_unique<IfNode>(
                 Condition ? Condition->Clone() : nullptr,
                 ThenBranch ? ThenBranch->Clone() : nullptr,
-                ElseBranch ? ElseBranch->Clone() : nullptr);
+                ElseBranch ? ElseBranch->Clone() : nullptr, Location);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -230,11 +237,17 @@ namespace Aleng
 
         NodePtr Body;
 
-        ForStatementNode(ForNumericRange numericInfo, NodePtr body)
-            : Type(LoopType::NUMERIC), NumericLoopInfo(std::move(numericInfo)), Body(std::move(body)) {}
+        ForStatementNode(ForNumericRange numericInfo, NodePtr body, TokenLocation loc)
+            : Type(LoopType::NUMERIC), NumericLoopInfo(std::move(numericInfo)), Body(std::move(body))
+        {
+            this->Location = loc;
+        }
 
-        ForStatementNode(ForCollectionRange collectionInfo, NodePtr body)
-            : Type(LoopType::COLLECTION), CollectionLoopInfo(std::move(collectionInfo)), Body(std::move(body)) {}
+        ForStatementNode(ForCollectionRange collectionInfo, NodePtr body, TokenLocation loc)
+            : Type(LoopType::COLLECTION), CollectionLoopInfo(std::move(collectionInfo)), Body(std::move(body))
+        {
+            this->Location = loc;
+        }
 
         void Print(std::ostream &os) const override
         {
@@ -273,7 +286,7 @@ namespace Aleng
                     NumericLoopInfo->StepExpression ? NumericLoopInfo->StepExpression->Clone() : nullptr,
                     NumericLoopInfo->IsUntil};
                 return std::make_unique<ForStatementNode>(
-                    std::move(clonedNumericInfo), Body ? Body->Clone() : nullptr);
+                    std::move(clonedNumericInfo), Body ? Body->Clone() : nullptr, Location);
             }
             else if (Type == LoopType::COLLECTION && CollectionLoopInfo)
             {
@@ -281,7 +294,7 @@ namespace Aleng
                     CollectionLoopInfo->IteratorVariableName,
                     CollectionLoopInfo->CollectionExpression ? CollectionLoopInfo->CollectionExpression->Clone() : nullptr};
                 return std::make_unique<ForStatementNode>(
-                    std::move(clonedCollectionInfo), Body ? Body->Clone() : nullptr);
+                    std::move(clonedCollectionInfo), Body ? Body->Clone() : nullptr, Location);
             }
             throw std::runtime_error("Invalid ForStatementNode state for cloning.");
         }
@@ -295,15 +308,17 @@ namespace Aleng
         std::vector<Parameter> Parameters;
         NodePtr Body;
 
-        FunctionDefinitionNode(std::string funcName, std::vector<Parameter> params, NodePtr body)
+        FunctionDefinitionNode(std::string funcName, std::vector<Parameter> params, NodePtr body, TokenLocation loc)
             : FunctionName(funcName), Parameters(std::move(params)), Body(std::move(body))
         {
+            this->Location = loc;
         }
         FunctionDefinitionNode(const FunctionDefinitionNode &other)
             : FunctionName(other.FunctionName),
               Parameters(other.Parameters),
               Body(other.Body ? other.Body->Clone() : nullptr)
         {
+            this->Location = other.Location;
         }
 
         void Print(std::ostream &os) const override
@@ -340,12 +355,14 @@ namespace Aleng
         NodePtr CallableExpression;
         std::vector<NodePtr> Arguments;
 
-        FunctionCallNode(NodePtr calExpr, std::vector<NodePtr> args)
+        FunctionCallNode(NodePtr calExpr, std::vector<NodePtr> args, TokenLocation loc)
             : CallableExpression(std::move(calExpr)), Arguments(std::move(args))
         {
+            this->Location = loc;
         }
         FunctionCallNode(const FunctionCallNode &other) : CallableExpression(other.CallableExpression->Clone())
         {
+            this->Location = other.Location;
             for (const auto &arg : other.Arguments)
             {
                 Arguments.push_back(arg ? arg->Clone() : nullptr);
@@ -368,7 +385,7 @@ namespace Aleng
                 if (arg)
                     clonedArgs.push_back(arg->Clone());
             }
-            return std::make_unique<FunctionCallNode>(CallableExpression->Clone(), std::move(clonedArgs));
+            return std::make_unique<FunctionCallNode>(CallableExpression->Clone(), std::move(clonedArgs), Location);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -380,14 +397,18 @@ namespace Aleng
         NodePtr Right;
         bool Inverse;
 
-        EqualsExpressionNode(NodePtr left, NodePtr right, bool inv = false)
+        EqualsExpressionNode(NodePtr left, NodePtr right, bool inv, TokenLocation loc)
             : Left(std::move(left)), Right(std::move(right)), Inverse(inv)
         {
+            this->Location = loc;
         }
         EqualsExpressionNode(const EqualsExpressionNode &other)
             : Left(other.Left ? other.Left->Clone() : nullptr),
               Right(other.Right ? other.Right->Clone() : nullptr),
-              Inverse(other.Inverse) {}
+              Inverse(other.Inverse)
+        {
+            this->Location = other.Location;
+        }
 
         void Print(std::ostream &os) const override
         {
@@ -402,7 +423,7 @@ namespace Aleng
             return std::make_unique<EqualsExpressionNode>(
                 Left ? Left->Clone() : nullptr,
                 Right ? Right->Clone() : nullptr,
-                Inverse);
+                Inverse, Location);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -414,14 +435,18 @@ namespace Aleng
         NodePtr Right;
         TokenType Operator;
 
-        BinaryExpressionNode(TokenType op, NodePtr left, NodePtr right)
+        BinaryExpressionNode(TokenType op, NodePtr left, NodePtr right, TokenLocation loc)
             : Operator(op), Left(std::move(left)), Right(std::move(right))
         {
+            this->Location = loc;
         }
         BinaryExpressionNode(const BinaryExpressionNode &other)
             : Operator(other.Operator),
               Left(other.Left ? other.Left->Clone() : nullptr),
-              Right(other.Right ? other.Right->Clone() : nullptr) {}
+              Right(other.Right ? other.Right->Clone() : nullptr)
+        {
+            this->Location = other.Location;
+        }
 
         void Print(std::ostream &os) const override
         {
@@ -437,7 +462,7 @@ namespace Aleng
             return std::make_unique<BinaryExpressionNode>(
                 Operator,
                 Left ? Left->Clone() : nullptr,
-                Right ? Right->Clone() : nullptr);
+                Right ? Right->Clone() : nullptr, Location);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -447,11 +472,15 @@ namespace Aleng
     {
         std::string ModuleName;
 
-        ImportModuleNode(std::string moduleName)
+        ImportModuleNode(std::string moduleName, TokenLocation loc)
             : ModuleName(std::move(moduleName))
         {
+            this->Location = loc;
         }
-        ImportModuleNode(const ImportModuleNode &other) : ModuleName(other.ModuleName) {}
+        ImportModuleNode(const ImportModuleNode &other) : ModuleName(other.ModuleName)
+        {
+            this->Location = other.Location;
+        }
 
         void Print(std::ostream &os) const override
         {
@@ -460,7 +489,7 @@ namespace Aleng
 
         NodePtr Clone() const override
         {
-            return std::make_unique<ImportModuleNode>(ModuleName);
+            return std::make_unique<ImportModuleNode>(ModuleName, Location);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -471,13 +500,17 @@ namespace Aleng
         NodePtr Left;
         NodePtr Right;
 
-        AssignExpressionNode(NodePtr left, NodePtr right)
+        AssignExpressionNode(NodePtr left, NodePtr right, TokenLocation loc)
             : Left(std::move(left)), Right(std::move(right))
         {
+            this->Location = loc;
         }
         AssignExpressionNode(const AssignExpressionNode &other)
             : Left(other.Left ? other.Left->Clone() : nullptr),
-              Right(other.Right ? other.Right->Clone() : nullptr) {}
+              Right(other.Right ? other.Right->Clone() : nullptr)
+        {
+            this->Location = other.Location;
+        }
 
         void Print(std::ostream &os) const override
         {
@@ -492,7 +525,7 @@ namespace Aleng
         {
             return std::make_unique<AssignExpressionNode>(
                 Left ? Left->Clone() : nullptr,
-                Right ? Right->Clone() : nullptr);
+                Right ? Right->Clone() : nullptr, Location);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -503,8 +536,11 @@ namespace Aleng
         NodePtr Object;
         NodePtr Index;
 
-        ListAccessNode(NodePtr obj, NodePtr index)
-            : Object(std::move(obj)), Index(std::move(index)) {}
+        ListAccessNode(NodePtr obj, NodePtr index, TokenLocation loc)
+            : Object(std::move(obj)), Index(std::move(index))
+        {
+            this->Location = loc;
+        }
 
         void Print(std::ostream &os) const override
         {
@@ -518,7 +554,7 @@ namespace Aleng
         {
             return std::make_unique<ListAccessNode>(
                 Object ? Object->Clone() : nullptr,
-                Index ? Index->Clone() : nullptr);
+                Index ? Index->Clone() : nullptr, Location);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -527,8 +563,11 @@ namespace Aleng
     struct MapNode : ASTNode
     {
         std::unordered_map<std::string, NodePtr> Elements;
-        MapNode(std::unordered_map<std::string, NodePtr> elements)
-            : Elements(std::move(elements)) {}
+        MapNode(std::unordered_map<std::string, NodePtr> elements, TokenLocation loc)
+            : Elements(std::move(elements))
+        {
+            this->Location = loc;
+        }
 
         void Print(std::ostream &os) const override
         {
@@ -550,7 +589,7 @@ namespace Aleng
                 if (pair.second)
                     clonedElements.emplace(pair.first, pair.second->Clone());
             }
-            return std::make_unique<MapNode>(std::move(clonedElements));
+            return std::make_unique<MapNode>(std::move(clonedElements), Location);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -559,8 +598,11 @@ namespace Aleng
     struct ListNode : ASTNode
     {
         std::vector<NodePtr> Elements;
-        ListNode(std::vector<NodePtr> elements)
-            : Elements(std::move(elements)) {}
+        ListNode(std::vector<NodePtr> elements, TokenLocation loc)
+            : Elements(std::move(elements))
+        {
+            this->Location = loc;
+        }
 
         void Print(std::ostream &os) const override
         {
@@ -586,7 +628,7 @@ namespace Aleng
                 if (elem)
                     clonedElements.push_back(elem->Clone());
             }
-            return std::make_unique<ListNode>(std::move(clonedElements));
+            return std::make_unique<ListNode>(std::move(clonedElements), Location);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -595,10 +637,13 @@ namespace Aleng
     struct BooleanNode : ASTNode
     {
         bool Value;
-        BooleanNode(bool val) : Value(val) {}
+        BooleanNode(bool val, TokenLocation loc) : Value(val)
+        {
+            this->Location = loc;
+        }
 
         void Print(std::ostream &os) const override { os << (Value ? "true" : "false"); }
-        NodePtr Clone() const override { return std::make_unique<BooleanNode>(Value); }
+        NodePtr Clone() const override { return std::make_unique<BooleanNode>(Value, Location); }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
     };
@@ -607,16 +652,21 @@ namespace Aleng
     {
         long long Value;
 
-        IntegerNode()
+        IntegerNode(TokenLocation loc)
             : Value(0)
         {
+            this->Location = loc;
         }
 
-        IntegerNode(int value)
+        IntegerNode(int value, TokenLocation loc)
             : Value(value)
         {
+            this->Location = loc;
         }
-        IntegerNode(const IntegerNode &other) : Value(other.Value) {}
+        IntegerNode(const IntegerNode &other) : Value(other.Value)
+        {
+            this->Location = other.Location;
+        }
 
         void Print(std::ostream &os) const override
         {
@@ -625,7 +675,7 @@ namespace Aleng
 
         NodePtr Clone() const override
         {
-            return std::make_unique<IntegerNode>(Value);
+            return std::make_unique<IntegerNode>(Value, Location);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -635,17 +685,22 @@ namespace Aleng
     {
         float Value;
 
-        FloatNode()
+        FloatNode(TokenLocation loc)
             : Value(0.0f)
         {
+            this->Location = loc;
         }
 
-        FloatNode(float value)
+        FloatNode(float value, TokenLocation loc)
             : Value(value)
         {
+            this->Location = loc;
         }
 
-        FloatNode(const FloatNode &other) : Value(other.Value) {}
+        FloatNode(const FloatNode &other) : Value(other.Value)
+        {
+            this->Location = other.Location;
+        }
 
         void Print(std::ostream &os) const override
         {
@@ -654,7 +709,7 @@ namespace Aleng
 
         NodePtr Clone() const override
         {
-            return std::make_unique<FloatNode>(Value);
+            return std::make_unique<FloatNode>(Value, Location);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -664,22 +719,28 @@ namespace Aleng
     {
         std::string Value;
 
-        StringNode()
+        StringNode(TokenLocation loc)
             : Value("")
         {
+            this->Location = loc;
         }
 
-        StringNode(const std::string &value)
+        StringNode(const std::string &value, TokenLocation loc)
             : Value(value)
         {
+            this->Location = loc;
         }
 
-        StringNode(std::string &&value)
+        StringNode(std::string &&value, TokenLocation loc)
             : Value(std::move(value))
         {
+            this->Location = loc;
         }
 
-        StringNode(const StringNode &other) : Value(other.Value) {}
+        StringNode(const StringNode &other) : Value(other.Value)
+        {
+            this->Location = other.Location;
+        }
 
         void Print(std::ostream &os) const override
         {
@@ -688,7 +749,7 @@ namespace Aleng
 
         NodePtr Clone() const override
         {
-            return std::make_unique<StringNode>(Value);
+            return std::make_unique<StringNode>(Value, Location);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;
@@ -703,17 +764,22 @@ namespace Aleng
         {
         }
 
-        IdentifierNode(const std::string &value)
+        IdentifierNode(const std::string &value, TokenLocation loc)
             : Value(value)
         {
+            this->Location = loc;
         }
 
-        IdentifierNode(std::string &&value)
+        IdentifierNode(std::string &&value, TokenLocation loc)
             : Value(std::move(value))
         {
+            this->Location = loc;
         }
 
-        IdentifierNode(const IdentifierNode &other) : Value(other.Value) {}
+        IdentifierNode(const IdentifierNode &other) : Value(other.Value)
+        {
+            this->Location = other.Location;
+        }
 
         void Print(std::ostream &os) const override
         {
@@ -722,7 +788,7 @@ namespace Aleng
 
         NodePtr Clone() const override
         {
-            return std::make_unique<IdentifierNode>(Value);
+            return std::make_unique<IdentifierNode>(Value, Location);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;

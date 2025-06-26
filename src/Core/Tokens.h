@@ -52,21 +52,30 @@ namespace Aleng
         END_OF_FILE
     };
 
+    struct TokenLocation
+    {
+        int Line = 1;
+        int Column = 1;
+    };
+
     struct Token
     {
-        Token(TokenType type, char c)
+        Token(TokenType type, char c, TokenLocation loc)
         {
             Type = type;
             Value = c;
+            Location = loc;
         }
-        Token(TokenType type, const std::string &str)
+        Token(TokenType type, const std::string &str, TokenLocation loc)
         {
             Type = type;
             Value = str;
+            Location = loc;
         }
 
         TokenType Type;
         std::string Value;
+        TokenLocation Location;
     };
 
     inline std::string TokenTypeToString(TokenType type)

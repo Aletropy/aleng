@@ -52,7 +52,7 @@ namespace Aleng
             thenStatements.push_back(Statement());
         }
 
-        NodePtr thenBranch = std::make_unique<BlockNode>(std::move(thenStatements));
+        NodePtr thenBranch = std::make_unique<BlockNode>(std::move(thenStatements), m_Tokens[m_Index].Location);
         NodePtr elseBranch = nullptr;
 
         if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::ELSE)
@@ -65,7 +65,7 @@ namespace Aleng
             {
                 elseStatements.push_back(Statement());
             }
-            elseBranch = std::make_unique<BlockNode>(std::move(elseStatements));
+            elseBranch = std::make_unique<BlockNode>(std::move(elseStatements), m_Tokens[m_Index].Location);
         }
 
         if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::END)
@@ -74,7 +74,7 @@ namespace Aleng
             throw std::runtime_error("Expected 'end' to close 'if' statement.");
 
         return std::make_unique<IfNode>(
-            std::move(condition), std::move(thenBranch), std::move(elseBranch));
+            std::move(condition), std::move(thenBranch), std::move(elseBranch), m_Tokens[m_Index].Location);
     }
 
     NodePtr Parser::ParseForStatement()
@@ -131,10 +131,10 @@ namespace Aleng
                 throw std::runtime_error("Expected 'End' to close 'For' statement.");
 
             m_Index++;
-            body = std::make_unique<BlockNode>(std::move(bodyStatements));
+            body = std::make_unique<BlockNode>(std::move(bodyStatements), m_Tokens[m_Index].Location);
 
             ForNumericRange numericInfo = {iteratorVarName, std::move(startExpr), std::move(endExpr), std::move(stepExpr), isUntil};
-            return std::make_unique<ForStatementNode>(numericInfo, std::move(body));
+            return std::make_unique<ForStatementNode>(numericInfo, std::move(body), m_Tokens[m_Index].Location);
         }
         else if (m_Tokens[m_Index].Type == TokenType::IN)
         {
@@ -146,11 +146,11 @@ namespace Aleng
             if (m_Tokens[m_Index].Type != TokenType::END)
                 throw std::runtime_error("Expected 'End' to close 'For' statement.");
 
+            body = std::make_unique<BlockNode>(std::move(bodyStatements), m_Tokens[m_Index].Location);
             m_Index++;
-            body = std::make_unique<BlockNode>(std::move(bodyStatements));
 
             ForCollectionRange collectionInfo = {iteratorVarName, std::move(collectionExpr)};
-            return std::make_unique<ForStatementNode>(collectionInfo, std::move(body));
+            return std::make_unique<ForStatementNode>(collectionInfo, std::move(body), m_Tokens[m_Index].Location);
         }
         else
             throw std::runtime_error("Expected '=' or 'in' after iterator variable in For loop.");
@@ -217,10 +217,10 @@ namespace Aleng
             bodyStatements.push_back(Statement());
         }
 
-        NodePtr body = std::make_unique<BlockNode>(std::move(bodyStatements));
+        NodePtr body = std::make_unique<BlockNode>(std::move(bodyStatements), m_Tokens[m_Index].Location);
         m_Index++;
 
-        return std::make_unique<FunctionDefinitionNode>(funcName, std::move(params), std::move(body));
+        return std::make_unique<FunctionDefinitionNode>(funcName, std::move(params), std::move(body), m_Tokens[m_Index].Location);
     }
 
     NodePtr Parser::ParseBlock()
@@ -232,7 +232,7 @@ namespace Aleng
         if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::END)
             m_Index++;
 
-        return std::make_unique<BlockNode>(std::move(statements));
+        return std::make_unique<BlockNode>(std::move(statements), m_Tokens[m_Index].Location);
     }
 
     NodePtr Parser::ParseListLiteral()
@@ -259,7 +259,7 @@ namespace Aleng
         if (m_Tokens[m_Index].Type != TokenType::RBRACE)
             throw std::runtime_error("Expected ']' to close list literal");
         m_Index++;
-        return std::make_unique<ListNode>(std::move(elements));
+        return std::make_unique<ListNode>(std::move(elements), m_Tokens[m_Index].Location);
     }
 
     NodePtr Parser::Expression()
@@ -274,7 +274,7 @@ namespace Aleng
             m_Index++;
             NodePtr right = Statement();
             return std::make_unique<AssignExpressionNode>(
-                std::move(left), std::move(right));
+                std::move(left), std::move(right), m_Tokens[m_Index].Location);
         }
 
         while (m_Index < m_Tokens.size() && (m_Tokens[m_Index].Type == TokenType::EQUALS))
@@ -282,7 +282,7 @@ namespace Aleng
             auto op = m_Tokens[m_Index];
             m_Index++;
             auto right = AddictiveExpression();
-            left = std::make_unique<EqualsExpressionNode>(std::move(left), std::move(right), op.Value == "!=");
+            left = std::make_unique<EqualsExpressionNode>(std::move(left), std::move(right), op.Value == "!=", m_Tokens[m_Index].Location);
         }
 
         return left;
@@ -297,7 +297,7 @@ namespace Aleng
             auto op = m_Tokens[m_Index];
             m_Index++;
             auto right = Term();
-            left = std::make_unique<BinaryExpressionNode>(op.Type, std::move(left), std::move(right));
+            left = std::make_unique<BinaryExpressionNode>(op.Type, std::move(left), std::move(right), m_Tokens[m_Index].Location);
         }
 
         return left;
@@ -312,7 +312,7 @@ namespace Aleng
             auto op = m_Tokens[m_Index];
             m_Index++;
             auto right = Factor();
-            left = std::make_unique<BinaryExpressionNode>(op.Type, std::move(left), std::move(right));
+            left = std::make_unique<BinaryExpressionNode>(op.Type, std::move(left), std::move(right), m_Tokens[m_Index].Location);
         }
 
         return left;
@@ -326,28 +326,28 @@ namespace Aleng
         if (token.Type == TokenType::TRUE)
         {
             m_Index++;
-            primaryExpr = std::make_unique<BooleanNode>(true);
+            primaryExpr = std::make_unique<BooleanNode>(true, token.Location);
         }
         else if (token.Type == TokenType::FALSE)
         {
             m_Index++;
-            primaryExpr = std::make_unique<BooleanNode>(false);
+            primaryExpr = std::make_unique<BooleanNode>(false, token.Location);
         }
         else if (token.Type == TokenType::INTEGER)
         {
             m_Index++;
-            primaryExpr = std::make_unique<IntegerNode>(std::stoi(token.Value));
+            primaryExpr = std::make_unique<IntegerNode>(std::stoll(token.Value), token.Location);
         }
         else if (token.Type == TokenType::FLOAT)
         {
             m_Index++;
-            primaryExpr = std::make_unique<FloatNode>(std::stof(token.Value));
+            primaryExpr = std::make_unique<FloatNode>(std::stof(token.Value), token.Location);
         }
 
         else if (token.Type == TokenType::STRING)
         {
             m_Index++;
-            primaryExpr = std::make_unique<StringNode>(token.Value);
+            primaryExpr = std::make_unique<StringNode>(token.Value, token.Location);
         }
         else if (token.Type == TokenType::LBRACE)
             primaryExpr = ParseListLiteral();
@@ -364,13 +364,13 @@ namespace Aleng
         {
             m_Index++;
             NodePtr operand = Factor();
-            auto zero = std::make_unique<IntegerNode>(0);
-            primaryExpr = std::make_unique<BinaryExpressionNode>(TokenType::MINUS, std::move(zero), std::move(operand));
+            auto zero = std::make_unique<IntegerNode>(0, token.Location);
+            primaryExpr = std::make_unique<BinaryExpressionNode>(TokenType::MINUS, std::move(zero), std::move(operand), token.Location);
         }
         else if (token.Type == TokenType::IDENTIFIER)
         {
             m_Index++;
-            primaryExpr = std::make_unique<IdentifierNode>(token.Value);
+            primaryExpr = std::make_unique<IdentifierNode>(token.Value, token.Location);
         }
         else if (token.Type == TokenType::MODULE)
         {
@@ -378,7 +378,7 @@ namespace Aleng
             if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::STRING)
             {
                 auto pathStr = m_Tokens[m_Index++].Value;
-                return std::make_unique<ImportModuleNode>(pathStr);
+                return std::make_unique<ImportModuleNode>(pathStr, token.Location);
             }
             throw std::runtime_error("Expected module name after 'module' keyword.");
         }
@@ -409,7 +409,7 @@ namespace Aleng
 
                 m_Index++;
 
-                primaryExpr = std::make_unique<FunctionCallNode>(std::move(primaryExpr), std::move(args));
+                primaryExpr = std::make_unique<FunctionCallNode>(std::move(primaryExpr), std::move(args), token.Location);
             }
             else if (m_Tokens[m_Index].Type == TokenType::LBRACE)
             {
@@ -418,7 +418,7 @@ namespace Aleng
                 if (m_Tokens[m_Index].Type != TokenType::RBRACE)
                     throw std::runtime_error("Expected ']' after index expression.");
                 m_Index++;
-                primaryExpr = std::make_unique<ListAccessNode>(std::move(primaryExpr), std::move(indexExpr));
+                primaryExpr = std::make_unique<ListAccessNode>(std::move(primaryExpr), std::move(indexExpr), token.Location);
             }
             else
                 break;
@@ -431,6 +431,6 @@ namespace Aleng
     {
         if (m_Index + 1 < m_Tokens.size())
             return m_Tokens[m_Index + 1];
-        return {TokenType::END_OF_FILE, ""};
+        return {TokenType::END_OF_FILE, "", m_Tokens[m_Index].Location};
     }
 }

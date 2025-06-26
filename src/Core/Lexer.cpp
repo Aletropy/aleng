@@ -11,33 +11,60 @@ namespace Aleng
 
     Token Lexer::Next()
     {
+        TokenLocation startLoc = {m_Line, m_Column};
+
+        auto advance = [&](int count = 1)
+        {
+            for (int i = 0; i < count; ++i)
+            {
+                if (m_Index < m_Input.length() && m_Input[m_Index] == '\n')
+                {
+                    m_Line++;
+                    m_Column = 1;
+                }
+                else
+                {
+                    m_Column++;
+                }
+                m_Index++;
+            }
+        };
+
         while (m_Input[m_Index] == ' ' || m_Input[m_Index] == '\t' || m_Input[m_Index] == '\n')
         {
-            m_Index++;
+            startLoc = {m_Line, m_Column};
+            advance();
         }
 
         if (m_Index >= m_Input.length())
         {
-            return {TokenType::END_OF_FILE, ""};
+            return {TokenType::END_OF_FILE, "", startLoc};
         }
+
+        startLoc = {m_Line, m_Column};
 
         if (m_Input[m_Index] == '#')
         {
             if (m_Index + 1 < m_Input.length() && m_Input[m_Index + 1] == '#')
             {
-                m_Index += 2;
+                advance(2);
                 while (m_Index < m_Input.size() && m_Input[m_Index] != '#')
-                    m_Index++;
+                    advance();
+
+                startLoc = {m_Line, m_Column};
 
                 if (m_Index + 1 >= m_Input.length() || m_Input[m_Index + 1] != '#')
                     throw std::runtime_error("Expected double '##' to end multiple line comment.");
-                m_Index += 2;
+                advance(2);
+                startLoc = {m_Line, m_Column};
             }
 
-            m_Index++;
+            advance();
             while (m_Index < m_Input.size() && m_Input[m_Index] != '\n')
-                m_Index++;
-            m_Index++;
+                advance();
+            advance();
+
+            startLoc = {m_Line, m_Column};
         }
 
         auto c = m_Input[m_Index];
@@ -50,26 +77,31 @@ namespace Aleng
             while (m_Index < m_Input.length() && std::isdigit(m_Input[m_Index]))
             {
                 value += m_Input[m_Index];
-                m_Index++;
+                advance();
             }
+
+            startLoc = {m_Line, m_Column};
 
             if (m_Input[m_Index] == '.')
             {
                 if (m_Index + 1 < m_Input.length() && m_Input[m_Index + 1] == '.')
-                    return {TokenType::INTEGER, value};
+                    return {TokenType::INTEGER, value, startLoc};
 
-                m_Index++;
+                advance();
                 value += ".";
                 while (m_Index < m_Input.length() && std::isdigit(m_Input[m_Index]))
                 {
                     value += m_Input[m_Index];
-                    m_Index++;
+                    advance();
                 }
 
-                return {TokenType::FLOAT, value};
+                startLoc = {m_Line, m_Column};
+
+                return {
+                    TokenType::FLOAT, value, startLoc};
             }
 
-            return {TokenType::INTEGER, value};
+            return {TokenType::INTEGER, value, startLoc};
         }
 
         if (std::isalpha(c) || c == '_')
@@ -79,62 +111,62 @@ namespace Aleng
             while (std::isalnum(m_Input[m_Index]) || m_Input[m_Index] == '_')
             {
                 value += m_Input[m_Index];
-                m_Index++;
+                advance();
             }
 
             if (value == "If")
-                return {TokenType::IF, value};
+                return {TokenType::IF, value, startLoc};
             else if (value == "Else")
-                return {TokenType::ELSE, value};
+                return {TokenType::ELSE, value, startLoc};
             else if (value == "While")
-                return {TokenType::WHILE, value};
+                return {TokenType::WHILE, value, startLoc};
             else if (value == "For")
-                return {TokenType::FOR, value};
+                return {TokenType::FOR, value, startLoc};
             else if (value == "Fn")
-                return {TokenType::FUNCTION, value};
+                return {TokenType::FUNCTION, value, startLoc};
             else if (value == "Module")
-                return {TokenType::MODULE, value};
+                return {TokenType::MODULE, value, startLoc};
             else if (value == "End")
-                return {TokenType::END, value};
+                return {TokenType::END, value, startLoc};
             else if (value == "True")
-                return {TokenType::TRUE, value};
+                return {TokenType::TRUE, value, startLoc};
             else if (value == "False")
-                return {TokenType::FALSE, value};
+                return {TokenType::FALSE, value, startLoc};
             else if (value == "in")
-                return {TokenType::IN, value};
+                return {TokenType::IN, value, startLoc};
             else if (value == "until")
-                return {TokenType::UNTIL, value};
+                return {TokenType::UNTIL, value, startLoc};
             else if (value == "step")
-                return {TokenType::STEP, value};
+                return {TokenType::STEP, value, startLoc};
 
-            return {TokenType::IDENTIFIER, value};
+            return {TokenType::IDENTIFIER, value, startLoc};
         }
 
         if (c == '$')
         {
-            m_Index++;
-            return {TokenType::DOLLAR, '$'};
+            advance();
+            return {TokenType::DOLLAR, '$', startLoc};
         }
 
         if (c == '.')
         {
             if (m_Index + 1 < m_Input.length() && m_Input[m_Index] == '.')
             {
-                m_Index += 2;
-                return {TokenType::RANGE, ".."};
+                advance(2);
+                return {TokenType::RANGE, "..", startLoc};
             }
         }
 
         if (c == '"')
         {
-            m_Index++; // Consume "
+            advance();
             std::string value = "";
 
             while (m_Index < m_Input.length() && m_Input[m_Index] != '"')
             {
                 if (m_Input[m_Index] == '\\')
                 {
-                    m_Index++;
+                    advance();
                     if (m_Index < m_Input.length())
                     {
                         switch (m_Input[m_Index])
@@ -159,98 +191,98 @@ namespace Aleng
                 else
                     value += m_Input[m_Index];
 
-                m_Index++;
+                advance();
             }
 
             if (m_Input[m_Index] != '"')
             {
                 throw std::runtime_error("Expected string termination.");
-                return {TokenType::UNKNOWN, c};
+                return {TokenType::UNKNOWN, c, startLoc};
             }
 
-            m_Index++;
-            return {TokenType::STRING, value};
+            advance();
+            return {TokenType::STRING, value, startLoc};
         }
 
         if (c == '=')
         {
             if (m_Input[m_Index + 1] == '=')
             {
-                m_Index += 2;
-                return {TokenType::EQUALS, "=="};
+                advance(2);
+                return {TokenType::EQUALS, "==", startLoc};
             }
 
-            m_Index++;
-            return {TokenType::ASSIGN, c};
+            advance();
+            return {TokenType::ASSIGN, c, startLoc};
         }
 
         if (c == '!')
         {
             if (m_Input[m_Index + 1] == '=')
             {
-                m_Index += 2;
-                return {TokenType::EQUALS, "!="};
+                advance(2);
+                return {TokenType::EQUALS, "!=", startLoc};
             }
 
             throw std::runtime_error("NOT not supported yet.");
-            return {TokenType::UNKNOWN, ""};
+            return {TokenType::UNKNOWN, "", startLoc};
         }
 
         // General characters
         switch (c)
         {
         case '+':
-            m_Index++;
-            return {TokenType::PLUS, c};
+            advance();
+            return {TokenType::PLUS, c, startLoc};
         case '-':
-            m_Index++;
-            return {TokenType::MINUS, c};
+            advance();
+            return {TokenType::MINUS, c, startLoc};
         case '*':
-            m_Index++;
-            return {TokenType::MULTIPLY, c};
+            advance();
+            return {TokenType::MULTIPLY, c, startLoc};
         case '/':
-            m_Index++;
-            return {TokenType::DIVIDE, c};
+            advance();
+            return {TokenType::DIVIDE, c, startLoc};
         case '^':
-            m_Index++;
-            return {TokenType::POWER, c};
+            advance();
+            return {TokenType::POWER, c, startLoc};
         case ',':
-            m_Index++;
-            return {TokenType::COMMA, c};
+            advance();
+            return {TokenType::COMMA, c, startLoc};
         case ';':
-            m_Index++;
-            return {TokenType::SEMICOLON, c};
+            advance();
+            return {TokenType::SEMICOLON, c, startLoc};
         case ':':
-            m_Index++;
-            return {TokenType::COLON, c};
+            advance();
+            return {TokenType::COLON, c, startLoc};
         case '(':
-            m_Index++;
-            return {TokenType::LPAREN, c};
+            advance();
+            return {TokenType::LPAREN, c, startLoc};
         case ')':
-            m_Index++;
-            return {TokenType::RPAREN, c};
+            advance();
+            return {TokenType::RPAREN, c, startLoc};
         case '{':
-            m_Index++;
-            return {TokenType::LCURLY, c};
+            advance();
+            return {TokenType::LCURLY, c, startLoc};
         case '}':
-            m_Index++;
-            return {TokenType::RCURLY, c};
+            advance();
+            return {TokenType::RCURLY, c, startLoc};
         case '[':
-            m_Index++;
-            return {TokenType::LBRACE, c};
+            advance();
+            return {TokenType::LBRACE, c, startLoc};
         case ']':
-            m_Index++;
-            return {TokenType::RBRACE, c};
+            advance();
+            return {TokenType::RBRACE, c, startLoc};
         case '>':
-            m_Index++;
-            return {TokenType::GREATER, c};
+            advance();
+            return {TokenType::GREATER, c, startLoc};
         case '<':
-            m_Index++;
-            return {TokenType::MINOR, c};
+            advance();
+            return {TokenType::MINOR, c, startLoc};
         }
 
-        m_Index++;
-        return {TokenType::UNKNOWN, c};
+        advance();
+        return {TokenType::UNKNOWN, c, startLoc};
     }
 
     std::vector<Token> Lexer::Tokenize()
@@ -260,7 +292,7 @@ namespace Aleng
         {
             tokens.push_back(Next());
         }
-        tokens.push_back({TokenType::END_OF_FILE, ""});
+        tokens.push_back({TokenType::END_OF_FILE, "", {m_Line, m_Column}});
         return tokens;
     }
 }

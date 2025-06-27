@@ -322,7 +322,7 @@ namespace Aleng
 
     NodePtr Parser::Expression()
     {
-        auto left = AddictiveExpression();
+        auto left = LogicalOrExpression();
 
         if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::ASSIGN)
         {
@@ -335,12 +335,65 @@ namespace Aleng
                 std::move(left), std::move(right), m_Tokens[m_Index].Location);
         }
 
+        return left;
+    }
+
+    NodePtr Parser::LogicalOrExpression()
+    {
+        auto left = LogicalAndExpression();
+
+        while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::OR)
+        {
+            auto op = m_Tokens[m_Index];
+            m_Index++;
+            auto right = LogicalAndExpression();
+            left = std::make_unique<BinaryExpressionNode>(op.Type, std::move(left), std::move(right), m_Tokens[m_Index].Location);
+        }
+
+        return left;
+    }
+
+    NodePtr Parser::LogicalAndExpression()
+    {
+        auto left = EqualityExpression();
+
+        while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::AND)
+        {
+            auto op = m_Tokens[m_Index];
+            m_Index++;
+            auto right = EqualityExpression();
+            left = std::make_unique<BinaryExpressionNode>(op.Type, std::move(left), std::move(right), m_Tokens[m_Index].Location);
+        }
+
+        return left;
+    }
+
+    NodePtr Parser::EqualityExpression()
+    {
+        auto left = ComparisonExpression();
+
         while (m_Index < m_Tokens.size() && (m_Tokens[m_Index].Type == TokenType::EQUALS))
         {
             auto op = m_Tokens[m_Index];
             m_Index++;
-            auto right = AddictiveExpression();
+            auto right = ComparisonExpression();
             left = std::make_unique<EqualsExpressionNode>(std::move(left), std::move(right), op.Value == "!=", m_Tokens[m_Index].Location);
+        }
+
+        return left;
+    }
+
+    NodePtr Parser::ComparisonExpression()
+    {
+        auto left = AddictiveExpression();
+
+        while (m_Index < m_Tokens.size() && (m_Tokens[m_Index].Type == TokenType::GREATER || m_Tokens[m_Index].Type == TokenType::GREATER_EQUAL ||
+                                             m_Tokens[m_Index].Type == TokenType::MINOR || m_Tokens[m_Index].Type == TokenType::MINOR_EQUAL))
+        {
+            auto op = m_Tokens[m_Index];
+            m_Index++;
+            auto right = AddictiveExpression();
+            left = std::make_unique<BinaryExpressionNode>(op.Type, std::move(left), std::move(right), m_Tokens[m_Index].Location);
         }
 
         return left;
@@ -363,17 +416,37 @@ namespace Aleng
 
     NodePtr Parser::Term()
     {
-        auto left = Factor();
+        auto left = UnaryExpression();
 
         while (m_Index < m_Tokens.size() && (m_Tokens[m_Index].Type == TokenType::MULTIPLY || m_Tokens[m_Index].Type == TokenType::DIVIDE))
         {
             auto op = m_Tokens[m_Index];
             m_Index++;
-            auto right = Factor();
+            auto right = UnaryExpression();
             left = std::make_unique<BinaryExpressionNode>(op.Type, std::move(left), std::move(right), m_Tokens[m_Index].Location);
         }
 
         return left;
+    }
+
+    NodePtr Parser::UnaryExpression()
+    {
+        if (m_Tokens[m_Index].Type == TokenType::NOT || m_Tokens[m_Index].Type == TokenType::MINUS)
+        {
+            auto op = m_Tokens[m_Index];
+            m_Index++;
+            auto operand = UnaryExpression();
+            if (op.Type == TokenType::MINUS)
+            {
+                return std::make_unique<BinaryExpressionNode>(op.Type, std::make_unique<IntegerNode>(0, op.Location), std::move(operand), op.Location);
+            }
+            else
+            {
+                return std::make_unique<UnaryExpressionNode>(op.Type, std::move(operand), op.Location);
+            }
+        }
+
+        return Factor();
     }
 
     NodePtr Parser::Factor()

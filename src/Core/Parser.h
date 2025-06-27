@@ -19,9 +19,15 @@ namespace Aleng
         NodePtr ParseFunctionDefinition();
         NodePtr ParseListLiteral();
         NodePtr ParseMapLiteral();
+
         NodePtr Expression();
+        NodePtr LogicalOrExpression();
+        NodePtr LogicalAndExpression();
+        NodePtr EqualityExpression();
+        NodePtr ComparisonExpression();
         NodePtr AddictiveExpression();
         NodePtr Term();
+        NodePtr UnaryExpression();
         NodePtr Factor();
 
         Token Peek();

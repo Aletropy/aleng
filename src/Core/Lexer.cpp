@@ -145,6 +145,12 @@ namespace Aleng
                 return {TokenType::UNTIL, value, startLoc};
             else if (value == "step")
                 return {TokenType::STEP, value, startLoc};
+            else if (value == "and")
+                return {TokenType::AND, value, startLoc};
+            else if (value == "or")
+                return {TokenType::OR, value, startLoc};
+            else if (value == "not")
+                return {TokenType::NOT, value, startLoc};
 
             return {TokenType::IDENTIFIER, value, startLoc};
         }
@@ -211,6 +217,28 @@ namespace Aleng
             return {TokenType::STRING, value, startLoc};
         }
 
+        if (c == '>')
+        {
+            advance();
+            if (m_Index < m_Input.length() && m_Input[m_Index] == '=')
+            {
+                advance();
+                return {TokenType::GREATER_EQUAL, ">=", startLoc};
+            }
+            return {TokenType::GREATER, ">", startLoc};
+        }
+
+        if (c == '<')
+        {
+            advance();
+            if (m_Index < m_Input.length() && m_Input[m_Index] == '=')
+            {
+                advance();
+                return {TokenType::MINOR_EQUAL, "<=", startLoc};
+            }
+            return {TokenType::MINOR, ">", startLoc};
+        }
+
         if (c == '=')
         {
             if (m_Input[m_Index + 1] == '=')
@@ -230,9 +258,6 @@ namespace Aleng
                 advance(2);
                 return {TokenType::EQUALS, "!=", startLoc};
             }
-
-            throw AlengError("NOT not supported yet.", startLoc);
-            return {TokenType::UNKNOWN, "", startLoc};
         }
 
         // General characters
@@ -280,12 +305,6 @@ namespace Aleng
         case ']':
             advance();
             return {TokenType::RBRACE, c, startLoc};
-        case '>':
-            advance();
-            return {TokenType::GREATER, c, startLoc};
-        case '<':
-            advance();
-            return {TokenType::MINOR, c, startLoc};
         }
 
         advance();

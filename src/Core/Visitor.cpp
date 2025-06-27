@@ -69,7 +69,7 @@ namespace Aleng
             return AlengType::LIST;
         else if (std::holds_alternative<MapStorage>(val))
             return AlengType::MAP;
-        else if (std::holds_alternative<FunctionObject>(val))
+        else if (std::holds_alternative<FunctionStorage>(val))
             return AlengType::FUNCTION;
         throw std::runtime_error("Unsupported EvaluatedValue type encountered in GetAlengType.");
     }
@@ -544,11 +544,11 @@ namespace Aleng
             const Callable &callable = funcIt->second;
             if (callable.type == Callable::Type::USER_DEFINED)
             {
-                return FunctionObject(node.Value, callable.userFuncNode, callable.definitionEnvironment);
+                return std::make_shared<FunctionObject>(node.Value, callable.userFuncNode, callable.definitionEnvironment);
             }
             else
             {
-                return FunctionObject(node.Value);
+                return std::make_shared<FunctionObject>(node.Value);
             }
         }
 
@@ -659,30 +659,39 @@ namespace Aleng
         auto left = node.Left->Accept(*this);
         auto right = node.Right->Accept(*this);
 
-        bool result = false;
+        bool areEqual = false;
 
-        std::visit(
-            overloads{
-                [&](double l, double r)
-                {
-                    if (l == r)
-                        result = true;
-                },
-                [&](std::string l, std::string r)
-                {
-                    if (l == r)
-                        result = true;
-                },
-                [&](auto &l, auto &r)
-                {
-                    result = true;
-                }},
-            left, right);
+        std::visit(overloads{[&](double l, double r)
+                             {
+                                 areEqual = l == r;
+                             },
+                             [&](std::string l, std::string r)
+                             {
+                                 areEqual = l == r;
+                             },
+                             [&](bool l, bool r)
+                             {
+                                 areEqual = l == r;
+                             },
+                             [&](MapStorage l, MapStorage r)
+                             {
+                                 areEqual = (l->elements == r->elements);
+                             },
+                             [&](ListStorage l, ListStorage r)
+                             {
+                                 areEqual = (l->elements == r->elements);
+                             },
+                             [&](FunctionStorage l, FunctionStorage r)
+                             {
+                                 areEqual = l->Name == r->Name;
+                             },
+                             [&](auto &l, auto &r) {}},
+                   left, right);
 
         if (node.Inverse)
-            return !result;
+            return !areEqual;
         else
-            return result;
+            return areEqual;
     }
 
     EvaluatedValue Visitor::Visit(const FunctionDefinitionNode &node)
@@ -705,7 +714,7 @@ namespace Aleng
     {
         EvaluatedValue callableVar = node.CallableExpression->Accept(*this);
 
-        auto pFuncObj = std::get_if<FunctionObject>(&callableVar);
+        auto pFuncObj = std::get_if<FunctionStorage>(&callableVar);
 
         if (!pFuncObj)
         {
@@ -714,7 +723,7 @@ namespace Aleng
             throw AlengError("Expression '" + ss.str() + "' is not callable.", node);
         }
 
-        const FunctionObject &funcObj = *pFuncObj;
+        const FunctionObject &funcObj = *pFuncObj->get();
 
         std::vector<EvaluatedValue> resolvedArgs;
 
@@ -833,6 +842,19 @@ namespace Aleng
 
     EvaluatedValue Visitor::Visit(const BinaryExpressionNode &node)
     {
+        if (node.Operator == TokenType::AND)
+        {
+            if (!IsTruthy(node.Left->Accept(*this)))
+                return false;
+            return IsTruthy(node.Right->Accept(*this));
+        }
+        else if (node.Operator == TokenType::OR)
+        {
+            if (IsTruthy(node.Left->Accept(*this)))
+                return true;
+            return IsTruthy(node.Right->Accept(*this));
+        }
+
         auto left = node.Left->Accept(*this);
         auto right = node.Right->Accept(*this);
 
@@ -845,18 +867,30 @@ namespace Aleng
                     switch (node.Operator)
                     {
                     case TokenType::PLUS:
-                        finalValue = l + r;
+                        finalValue = EvaluatedValue(l + r);
                         break;
                     case TokenType::MINUS:
-                        finalValue = l - r;
+                        finalValue = EvaluatedValue(l - r);
                         break;
                     case TokenType::MULTIPLY:
-                        finalValue = l * r;
+                        finalValue = EvaluatedValue(l * r);
                         break;
                     case TokenType::DIVIDE:
                         if (r == 0.0)
                             throw AlengError("Division by 0  is an error.", node);
-                        finalValue = l / r;
+                        finalValue = EvaluatedValue(l / r);
+                        break;
+                    case TokenType::GREATER:
+                        finalValue = EvaluatedValue(l > r);
+                        break;
+                    case TokenType::GREATER_EQUAL:
+                        finalValue = EvaluatedValue(l >= r);
+                        break;
+                    case TokenType::MINOR:
+                        finalValue = EvaluatedValue(l < r);
+                        break;
+                    case TokenType::MINOR_EQUAL:
+                        finalValue = EvaluatedValue(l <= r);
                         break;
                     default:
                         throw AlengError("Unknown operator for binary expression: " + TokenTypeToString(node.Operator), node);
@@ -865,10 +899,25 @@ namespace Aleng
                 },
                 [&](std::string l, std::string r)
                 {
-                    if (node.Operator != TokenType::PLUS)
+                    switch (node.Operator)
+                    {
+                    case TokenType::PLUS:
+                        finalValue = EvaluatedValue(l + r);
+                    case TokenType::GREATER:
+                        finalValue = EvaluatedValue(l > r);
+                        break;
+                    case TokenType::GREATER_EQUAL:
+                        finalValue = EvaluatedValue(l >= r);
+                        break;
+                    case TokenType::MINOR:
+                        finalValue = EvaluatedValue(l < r);
+                        break;
+                    case TokenType::MINOR_EQUAL:
+                        finalValue = EvaluatedValue(l <= r);
+                        break;
+                    default:
                         throw AlengError("Only concatenation operator for strings supported.", node);
-                    finalValue = l + r;
-                    return;
+                    }
                 },
                 [&](std::string l, double r)
                 {
@@ -879,12 +928,12 @@ namespace Aleng
                     case TokenType::PLUS:
                         ss << l;
                         ss << std::to_string(r);
-                        finalValue = ss.str();
+                        finalValue = EvaluatedValue(0.0);
                         break;
                     case TokenType::MULTIPLY:
                         for (int i = 0; i < static_cast<int>(r); i++)
                             ss << l;
-                        finalValue = ss.str();
+                        finalValue = EvaluatedValue(0.0);
                         break;
                     default:
                         throw AlengError("Unknown operator for binary expression: " + TokenTypeToString(node.Operator), node);
@@ -904,7 +953,7 @@ namespace Aleng
                         finalList->elements.push_back(elem);
                     }
 
-                    finalValue = finalList;
+                    finalValue = EvaluatedValue(finalList);
                 },
                 [&](auto &l, auto &r)
                 {
@@ -914,6 +963,18 @@ namespace Aleng
                                      node);
                 }},
             left, right);
+
         return finalValue;
+    }
+
+    EvaluatedValue Visitor::Visit(const UnaryExpressionNode &node)
+    {
+        EvaluatedValue right = node.Right->Accept(*this);
+        if (node.Operator == TokenType::NOT)
+        {
+            return !IsTruthy(right);
+        }
+
+        throw AlengError("Unsupported unary operator '" + TokenTypeToString(node.Operator) + "'.", node);
     }
 }

@@ -6,10 +6,10 @@ namespace Aleng
 {
     enum class TokenType
     {
-        INTEGER,
-        FLOAT,
-        STRING,
-        IDENTIFIER,
+        INTEGER,    // 1 | 500 | -32
+        FLOAT,      // 1.25 | 500.0 | -99.5
+        STRING,     // "Foo" | "Bar"
+        IDENTIFIER, // x | varName | FunName
 
         LBRACE, // [
         RBRACE, // ]
@@ -18,41 +18,46 @@ namespace Aleng
         LPAREN, // (
         RPAREN, // )
 
-        PLUS,
-        MINUS,
-        MULTIPLY,
-        POWER,
-        DIVIDE,
-        GREATER,
-        MINOR,
-        RANGE, // ..
+        PLUS,          // +
+        MINUS,         // -
+        MULTIPLY,      // *
+        POWER,         // ^
+        DIVIDE,        // /
+        GREATER,       // >
+        GREATER_EQUAL, // >=
+        MINOR,         // <
+        MINOR_EQUAL,   // <=
+        RANGE,         // ..
 
-        COMMA,
-        COLON,
-        SEMICOLON,
-        DOLLAR,
-        EQUALS,
-        ASSIGN,
+        COMMA,     // ,
+        COLON,     // :
+        SEMICOLON, // ;
+        DOLLAR,    // $
+        EQUALS,    // ==
+        ASSIGN,    // =
 
-        IF,
-        ELSE,
-        FOR,
-        WHILE,
-        IN,
-        UNTIL,
-        STEP,
-        FUNCTION,
-        END,
-        RETURN,
-        BREAK,
-        CONTINUE,
-        MODULE,
+        IF,       // If
+        ELSE,     // Else
+        FOR,      // For
+        WHILE,    // While
+        IN,       // in
+        UNTIL,    // until
+        STEP,     // step
+        AND,      // and
+        OR,       // or
+        NOT,      // not
+        FUNCTION, // Fn
+        END,      // End
+        RETURN,   // Return
+        BREAK,    // Break
+        CONTINUE, // Continue
+        MODULE,   // Module
 
-        TRUE,
-        FALSE,
+        TRUE,  // True
+        FALSE, // False
 
         UNKNOWN,
-        END_OF_FILE
+        END_OF_FILE // EOF
     };
 
     struct TokenLocation
@@ -93,6 +98,14 @@ namespace Aleng
             return "*";
         case TokenType::DIVIDE:
             return "/";
+        case TokenType::AND:
+            return "and";
+        case TokenType::NOT:
+            return "not";
+        case TokenType::OR:
+            return "or";
+        case TokenType::FUNCTION:
+            return "Fn";
         case TokenType::INTEGER:
             return "Integer";
         case TokenType::FLOAT:

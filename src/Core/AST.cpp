@@ -11,8 +11,8 @@ namespace Aleng
             std::cout << *svalue;
         if (auto bvalue = std::get_if<bool>(&value))
             std::cout << ((*bvalue) ? "True" : "False");
-        if (auto fovalue = std::get_if<FunctionObject>(&value))
-            std::cout << "<Function: " << fovalue->Name << ">" << std::endl;
+        if (auto fovalue = std::get_if<FunctionStorage>(&value))
+            std::cout << "<Function: " << (*fovalue)->Name << ">" << std::endl;
         if (auto lvalue = std::get_if<ListStorage>(&value))
         {
             std::cout << "[";
@@ -128,6 +128,11 @@ namespace Aleng
     }
 
     EvaluatedValue BinaryExpressionNode::Accept(Visitor &visitor) const
+    {
+        return visitor.Visit(*this);
+    }
+
+    EvaluatedValue UnaryExpressionNode::Accept(Visitor &visitor) const
     {
         return visitor.Visit(*this);
     }

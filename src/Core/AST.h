@@ -30,6 +30,7 @@ namespace Aleng
 
     using ListStorage = std::shared_ptr<ListRecursiveWrapper>;
     using MapStorage = std::shared_ptr<MapRecursiveWrapper>;
+    using FunctionStorage = std::shared_ptr<FunctionObject>;
 
     using EvaluatedValue = std::variant<
         double,
@@ -37,7 +38,7 @@ namespace Aleng
         bool,
         ListStorage,
         MapStorage,
-        FunctionObject>;
+        FunctionStorage>;
 
     using SymbolTableStack = std::vector<std::unordered_map<std::string, EvaluatedValue>>;
 
@@ -543,6 +544,32 @@ namespace Aleng
         EvaluatedValue Accept(Visitor &visitor) const override;
     };
 
+    struct UnaryExpressionNode : ASTNode
+    {
+        TokenType Operator;
+        NodePtr Right;
+
+        UnaryExpressionNode(TokenType op, NodePtr right, TokenLocation loc)
+            : Operator(op), Right(std::move(right))
+        {
+            this->Location = loc;
+        }
+
+        void Print(std::ostream &os) const override
+        {
+            os << TokenTypeToString(Operator);
+            os << Right << std::endl;
+        }
+
+        NodePtr Clone() const override
+        {
+            return std::make_unique<UnaryExpressionNode>(
+                Operator, Right->Clone(), Location);
+        }
+
+        EvaluatedValue Accept(Visitor &visitor) const override;
+    };
+
     struct ImportModuleNode : ASTNode
     {
         std::string ModuleName;
@@ -891,5 +918,4 @@ namespace Aleng
         FunctionObject(std::string n)
             : Name(std::move(n)), Type(Type::BUILTIN), UserFuncNodeAst(nullptr) {}
     };
-
 } // namespace Aleng

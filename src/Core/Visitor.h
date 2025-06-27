@@ -49,6 +49,7 @@ namespace Aleng
         EvaluatedValue Visit(const FunctionCallNode &node);
         EvaluatedValue Visit(const ImportModuleNode &node);
         EvaluatedValue Visit(const BinaryExpressionNode &node);
+        EvaluatedValue Visit(const UnaryExpressionNode &node);
         EvaluatedValue Visit(const EqualsExpressionNode &node);
 
     private:

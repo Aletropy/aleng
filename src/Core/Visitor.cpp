@@ -344,6 +344,14 @@ namespace Aleng
                     lastResult = node.Body->Accept(*this);
                 }
             }
+            else if (auto pMap = std::get_if<MapStorage>(&collection))
+            {
+                for (const auto &pair : (*pMap)->elements)
+                {
+                    DefineVariable(info.IteratorVariableName, pair.first);
+                    lastResult = node.Body->Accept(*this);
+                }
+            }
             else
             {
                 PopScope();

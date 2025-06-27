@@ -223,12 +223,7 @@ namespace Aleng
                             if(auto pMessageStr = std::get_if<std::string>(&messageVal))
                             {
                                 if(!(*pCondition))
-                                {
-                                    std::stringstream ss;
-                                    ss << "Assert Failed: ";
-                                    ss << *pMessageStr;
-                                    throw AlengError(ss.str(), ctx);
-                                }
+                                    throw AlengError(*pMessageStr, ctx);
                                 return true;
                             }
                             else throw AlengError("Message must be an String.", ctx);
@@ -236,35 +231,64 @@ namespace Aleng
                         else
                             throw AlengError("Condition must be an Boolean.", ctx); }));
 
+        m_Functions.emplace("Error", Callable([&](Visitor &visitor, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
+                                              {
+            if (args.size() != 1)
+                throw AlengError("Error syntax incorrect. Expected: Error(errorMessage : String) -> Void", ctx);
+
+            auto messageVal = args[0];
+
+            if (auto pMessageStr = std::get_if<std::string>(&messageVal))
+                throw AlengError(*pMessageStr, ctx);
+            else
+                throw AlengError("Message must be an String.", ctx); }));
+
         m_Functions.emplace("ReadFile", Callable([&](Visitor &visitor, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
                                                  {
-            if(args.size() != 1)
+            if (args.size() != 1)
                 throw AlengError("ReadFile syntax incorrect. Expected ReadFile(path : String) -> String", ctx);
 
             auto filePathVal = args[0];
 
-            if(auto pFilepath = std::get_if<std::string>(&filePathVal))
+            if (auto pFilepath = std::get_if<std::string>(&filePathVal))
             {
                 auto filepath = fs::absolute(fs::path(*pFilepath));
 
-                if(!fs::exists(filepath))
+                if (!fs::exists(filepath))
                     throw AlengError("Path '" + filepath.string() + "' not exists.", ctx);
 
-                if(fs::is_directory(filepath))
+                if (fs::is_directory(filepath))
                     throw AlengError("Path '" + filepath.string() + "' is a directory, not an file.", ctx);
-                    
+
                 std::ifstream file(filepath);
-                
-                if(!file.is_open())
+
+                if (!file.is_open())
                     throw AlengError("Path '" + filepath.string() + "' could not be opened.", ctx);
-                
+
                 std::stringstream buffer;
                 buffer << file.rdbuf();
                 file.close();
 
                 return buffer.str();
+            }
+            else
+                throw AlengError("'path' must be an String.", ctx); }));
 
-            } else throw AlengError("'path' must be an String.", ctx); }));
+        m_Functions.emplace("Exit", Callable([&](Visitor &visitor, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
+                                             {
+            if(args.size() > 1)
+                throw AlengError("Exit syntax error. Expected: Error(code : Number?)", ctx);
+
+            EvaluatedValue code = 0.0;
+
+            if(args.size() > 0)
+                code = args[0];
+
+            if(auto pCodeDouble = std::get_if<double>(&code))
+            {
+                auto code = static_cast<int>(*pCodeDouble);
+                exit(code);
+            } else throw AlengError("'code' must be a number.", ctx); }));
     }
 
     void Visitor::LoadModuleFiles(std::map<std::string, fs::path> moduleFiles)

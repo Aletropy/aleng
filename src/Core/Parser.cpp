@@ -33,6 +33,24 @@ namespace Aleng
             return ParseFunctionDefinition();
         else if (token.Type == TokenType::FOR)
             return ParseForStatement();
+        else if (token.Type == TokenType::RETURN)
+        {
+            m_Index++;
+            NodePtr returnValue = nullptr;
+            // TODO: Return without a value
+            returnValue = Expression();
+            return std::make_unique<ReturnNode>(std::move(returnValue), token.Location);
+        }
+        else if (token.Type == TokenType::BREAK)
+        {
+            m_Index++;
+            return std::make_unique<BreakNode>(token.Location);
+        }
+        else if (token.Type == TokenType::CONTINUE)
+        {
+            m_Index++;
+            return std::make_unique<ContinueNode>(token.Location);
+        }
 
         auto expr = Expression();
         return expr;

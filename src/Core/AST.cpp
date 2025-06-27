@@ -102,6 +102,21 @@ namespace Aleng
         return visitor.Visit(*this);
     }
 
+    EvaluatedValue ReturnNode::Accept(Visitor &visitor) const
+    {
+        return visitor.Visit(*this);
+    }
+
+    EvaluatedValue BreakNode::Accept(Visitor &visitor) const
+    {
+        return visitor.Visit(*this);
+    }
+
+    EvaluatedValue ContinueNode::Accept(Visitor &visitor) const
+    {
+        return visitor.Visit(*this);
+    }
+
     EvaluatedValue EqualsExpressionNode::Accept(Visitor &visitor) const
     {
         return visitor.Visit(*this);

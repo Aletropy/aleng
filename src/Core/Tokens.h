@@ -43,6 +43,9 @@ namespace Aleng
         STEP,
         FUNCTION,
         END,
+        RETURN,
+        BREAK,
+        CONTINUE,
         MODULE,
 
         TRUE,

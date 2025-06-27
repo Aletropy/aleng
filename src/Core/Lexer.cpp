@@ -125,6 +125,12 @@ namespace Aleng
                 return {TokenType::FOR, value, startLoc};
             else if (value == "Fn")
                 return {TokenType::FUNCTION, value, startLoc};
+            else if (value == "Return")
+                return {TokenType::RETURN, value, startLoc};
+            else if (value == "Break")
+                return {TokenType::BREAK, value, startLoc};
+            else if (value == "Continue")
+                return {TokenType::CONTINUE, value, startLoc};
             else if (value == "Module")
                 return {TokenType::MODULE, value, startLoc};
             else if (value == "End")

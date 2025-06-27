@@ -9,6 +9,8 @@
 
 #include "Error.h"
 
+#include "ControlFlow.h"
+
 namespace fs = std::filesystem;
 
 namespace Aleng
@@ -396,7 +398,17 @@ namespace Aleng
                     for (; loopCondition(current); current += step)
                     {
                         DefineVariable(info.IteratorVariableName, current);
-                        lastResult = node.Body->Accept(*this);
+                        try
+                        {
+                            lastResult = node.Body->Accept(*this);
+                        }
+                        catch (const ContinueSignal &signal)
+                        {
+                        }
+                        catch (const BreakSignal &signal)
+                        {
+                            break;
+                        }
                     }
                 }
                 else
@@ -429,7 +441,17 @@ namespace Aleng
                 for (const auto &pair : (*pMap)->elements)
                 {
                     DefineVariable(info.IteratorVariableName, pair.first);
-                    lastResult = node.Body->Accept(*this);
+                    try
+                    {
+                        lastResult = node.Body->Accept(*this);
+                    }
+                    catch (const ContinueSignal &signal)
+                    {
+                    }
+                    catch (const BreakSignal &signal)
+                    {
+                        break;
+                    }
                 }
             }
             else
@@ -569,6 +591,19 @@ namespace Aleng
         if (auto objIdNode = dynamic_cast<const IdentifierNode *>(node.Object.get()))
             objectName = "'" + objIdNode->Value + "'";
         throw AlengError(objectName + " is not an iterator, cannot perform indexed access.", node);
+    }
+    EvaluatedValue Visitor::Visit(const ReturnNode &node)
+    {
+        EvaluatedValue resultVal = node.ReturnValueExpression->Accept(*this);
+        throw ReturnSignal(resultVal);
+    }
+    EvaluatedValue Visitor::Visit(const BreakNode &node)
+    {
+        throw BreakSignal();
+    }
+    EvaluatedValue Visitor::Visit(const ContinueNode &node)
+    {
+        throw ContinueSignal();
     }
     EvaluatedValue Visitor::Visit(const AssignExpressionNode &node)
     {
@@ -745,7 +780,16 @@ namespace Aleng
                 throw AlengError("Too many arguments for function '" + funcDef.FunctionName + "'. Expected " + std::to_string(funcDef.Parameters.size()) + " arguments, got " + std::to_string(resolvedArgs.size()) + ".", node);
             }
 
-            auto result = funcDef.Body->Accept(*this);
+            EvaluatedValue result;
+
+            try
+            {
+                funcDef.Body->Accept(*this);
+            }
+            catch (const ReturnSignal &signal)
+            {
+                result = signal.Value;
+            }
 
             m_SymbolTableStack = callingEnvironment;
 

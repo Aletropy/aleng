@@ -402,6 +402,70 @@ namespace Aleng
         EvaluatedValue Accept(Visitor &visitor) const override;
     };
 
+    struct ReturnNode : ASTNode
+    {
+        NodePtr ReturnValueExpression;
+
+        ReturnNode(NodePtr valExpr, TokenLocation loc) : ReturnValueExpression(std::move(valExpr))
+        {
+            this->Location = loc;
+        }
+
+        void Print(std::ostream &os) const override
+        {
+            os << "Return";
+            os << ReturnValueExpression << std::endl;
+        }
+
+        NodePtr Clone() const override
+        {
+            return std::make_unique<ReturnNode>(
+                ReturnValueExpression->Clone(), Location);
+        }
+
+        EvaluatedValue Accept(Visitor &visitor) const override;
+    };
+
+    struct BreakNode : ASTNode
+    {
+        BreakNode(TokenLocation loc)
+        {
+            this->Location = loc;
+        }
+
+        void Print(std::ostream &os) const override
+        {
+            os << "Break" << std::endl;
+        }
+
+        NodePtr Clone() const override
+        {
+            return std::make_unique<BreakNode>(Location);
+        }
+
+        EvaluatedValue Accept(Visitor &visitor) const override;
+    };
+
+    struct ContinueNode : ASTNode
+    {
+        ContinueNode(TokenLocation loc)
+        {
+            this->Location = loc;
+        }
+
+        void Print(std::ostream &os) const override
+        {
+            os << "Continue" << std::endl;
+        }
+
+        NodePtr Clone() const override
+        {
+            return std::make_unique<ContinueNode>(Location);
+        }
+
+        EvaluatedValue Accept(Visitor &visitor) const override;
+    };
+
     struct EqualsExpressionNode : ASTNode
     {
         NodePtr Left;

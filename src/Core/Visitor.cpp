@@ -891,11 +891,26 @@ namespace Aleng
                         break;
                     }
                 },
+                [&](ListStorage l, ListStorage r)
+                {
+                    auto finalList = std::make_shared<ListRecursiveWrapper>();
+
+                    for (const auto elem : l->elements)
+                    {
+                        finalList->elements.push_back(elem);
+                    }
+                    for (const auto elem : r->elements)
+                    {
+                        finalList->elements.push_back(elem);
+                    }
+
+                    finalValue = finalList;
+                },
                 [&](auto &l, auto &r)
                 {
                     throw AlengError("Unsupported operand types for operator " + TokenTypeToString(node.Operator) +
-                                         ". Left type index: " + std::to_string(left.index()) +
-                                         ", Right type index: " + std::to_string(right.index()),
+                                         ". Left type: " + AlengTypeToString(GetAlengType(left)) +
+                                         ", Right type: " + AlengTypeToString(GetAlengType(right)),
                                      node);
                 }},
             left, right);

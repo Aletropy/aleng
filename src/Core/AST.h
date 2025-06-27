@@ -51,6 +51,17 @@ namespace Aleng
         ListRecursiveWrapper(std::vector<EvaluatedValue> elems) : elements(std::move(elems)) {}
     };
 
+    struct MapRecursiveWrapper
+    {
+        std::unordered_map<std::string, EvaluatedValue> elements;
+
+        MapRecursiveWrapper() = default;
+        MapRecursiveWrapper(std::unordered_map<std::string, EvaluatedValue> elems)
+            : elements(std::move(elems))
+        {
+        }
+    };
+
     struct ASTNode
     {
         TokenLocation Location;
@@ -562,8 +573,9 @@ namespace Aleng
 
     struct MapNode : ASTNode
     {
-        std::unordered_map<std::string, NodePtr> Elements;
-        MapNode(std::unordered_map<std::string, NodePtr> elements, TokenLocation loc)
+        std::vector<std::pair<NodePtr, NodePtr>> Elements;
+
+        MapNode(std::vector<std::pair<NodePtr, NodePtr>> elements, TokenLocation loc)
             : Elements(std::move(elements))
         {
             this->Location = loc;
@@ -574,7 +586,10 @@ namespace Aleng
             os << "{" << std::endl;
             for (auto &pair : Elements)
             {
-                os << pair.first << " = ";
+                os << "(";
+                if (pair.first)
+                    pair.first->Print(os);
+                os << ") = ";
                 pair.second->Print(os);
                 os << std::endl;
             }
@@ -583,11 +598,11 @@ namespace Aleng
 
         NodePtr Clone() const override
         {
-            std::unordered_map<std::string, NodePtr> clonedElements;
+            std::vector<std::pair<NodePtr, NodePtr>> clonedElements;
             for (auto &pair : Elements)
             {
                 if (pair.second)
-                    clonedElements.emplace(pair.first, pair.second->Clone());
+                    clonedElements.emplace_back(pair.first->Clone(), pair.second->Clone());
             }
             return std::make_unique<MapNode>(std::move(clonedElements), Location);
         }

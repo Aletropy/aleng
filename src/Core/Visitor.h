@@ -15,6 +15,7 @@ namespace Aleng
         STRING,
         BOOLEAN,
         LIST,
+        MAP,
         FUNCTION,
         ANY
     };
@@ -33,6 +34,7 @@ namespace Aleng
         EvaluatedValue Visit(const IfNode &node);
         EvaluatedValue Visit(const ForStatementNode &node);
         EvaluatedValue Visit(const ListNode &node);
+        EvaluatedValue Visit(const MapNode &node);
         EvaluatedValue Visit(const BooleanNode &node);
         EvaluatedValue Visit(const IntegerNode &node);
         EvaluatedValue Visit(const FloatNode &node);

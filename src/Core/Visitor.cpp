@@ -25,6 +25,8 @@ namespace Aleng
             return "Boolean";
         case AlengType::LIST:
             return "List";
+        case AlengType::MAP:
+            return "Map";
         case AlengType::FUNCTION:
             return "Function";
         case AlengType::ANY:
@@ -47,6 +49,8 @@ namespace Aleng
             return *bval;
         else if (auto lval = std::get_if<ListStorage>(&val))
             return !(*lval)->elements.empty();
+        else if (auto mval = std::get_if<MapStorage>(&val))
+            return !(*mval)->elements.empty();
 
         return false;
     }
@@ -61,6 +65,8 @@ namespace Aleng
             return AlengType::BOOLEAN;
         else if (std::holds_alternative<ListStorage>(val))
             return AlengType::LIST;
+        else if (std::holds_alternative<MapStorage>(val))
+            return AlengType::MAP;
         else if (std::holds_alternative<FunctionObject>(val))
             return AlengType::FUNCTION;
         throw std::runtime_error("Unsupported EvaluatedValue type encountered in GetAlengType.");
@@ -378,6 +384,26 @@ namespace Aleng
         return listWrapper;
     }
 
+    EvaluatedValue Visitor::Visit(const MapNode &node)
+    {
+        auto mapWrapper = std::make_shared<MapRecursiveWrapper>();
+
+        for (const auto &pair : node.Elements)
+        {
+            EvaluatedValue keyVal = pair.first->Accept(*this);
+
+            if (auto pKeyStr = std::get_if<std::string>(&keyVal))
+            {
+                EvaluatedValue valueVal = pair.second->Accept(*this);
+                mapWrapper->elements[*pKeyStr] = valueVal;
+            }
+            else
+                throw AlengError("Map key must be evaluated to a string.", *pair.first);
+        }
+
+        return mapWrapper;
+    }
+
     EvaluatedValue Visitor::Visit(const BooleanNode &node)
     {
         return static_cast<EvaluatedValue>(node.Value);
@@ -438,10 +464,23 @@ namespace Aleng
             else
                 throw AlengError("List index must be a number.", node);
         }
+        else if (auto mapWrapperPtr = std::get_if<MapStorage>(&listObjectVal))
+        {
+            if (auto pIndexStr = std::get_if<std::string>(&indexVal))
+            {
+                auto &mapElements = (*mapWrapperPtr)->elements;
+                auto it = mapElements.find(*pIndexStr);
+                if (it == mapElements.end())
+                    throw AlengError("Key \"" + *pIndexStr + "\" not found in map.", *node.Index);
+                return it->second;
+            }
+            else
+                throw AlengError("Map key must be a string.", *node.Index);
+        }
         std::string objectName = "Object";
         if (auto objIdNode = dynamic_cast<const IdentifierNode *>(node.Object.get()))
             objectName = "'" + objIdNode->Value + "'";
-        throw AlengError(objectName + " is not a list, cannot perform indexed access.", node);
+        throw AlengError(objectName + " is not an iterator, cannot perform indexed access.", node);
     }
     EvaluatedValue Visitor::Visit(const AssignExpressionNode &node)
     {
@@ -471,12 +510,22 @@ namespace Aleng
                 else
                     throw AlengError("List index must be a number.", node);
             }
+            else if (auto mapWrapperPtr = std::get_if<MapStorage>(&listObjectVal))
+            {
+                if (auto pIndexStr = std::get_if<std::string>(&indexVal))
+                {
+                    (*mapWrapperPtr)->elements[*pIndexStr] = valueToAssign;
+                    return valueToAssign;
+                }
+                else
+                    throw AlengError("Map key for assignment must be a string.", *listAccess->Index);
+            }
             else
             {
                 std::string objectName = "Object";
                 if (auto objIdNode = dynamic_cast<const IdentifierNode *>(listAccess->Object.get()))
                     objectName = "'" + objIdNode->Value + "'";
-                throw AlengError(objectName + " is not a list, cannot perform indexed assignment.", node);
+                throw AlengError(objectName + " is not a iterator, cannot perform indexed assignment.", node);
             }
         }
 

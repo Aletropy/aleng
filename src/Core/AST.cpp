@@ -32,6 +32,21 @@ namespace Aleng
             }
             std::cout << "]";
         }
+        if (auto mvalue = std::get_if<MapStorage>(&value))
+        {
+            std::cout << "{";
+            auto &map = (*mvalue)->elements;
+            auto it = map.begin();
+            while (it != map.end())
+            {
+                std::cout << "\"" << it->first << "\" = ";
+                PrintEvaluatedValue(it->second, true);
+                ++it;
+                if (it != map.end())
+                    std::cout << ", ";
+            }
+            std::cout << "}";
+        }
 
         if (!raw)
             std::cout << std::endl;
@@ -64,8 +79,7 @@ namespace Aleng
 
     EvaluatedValue MapNode::Accept(Visitor &visitor) const
     {
-        // return visitor.Visit(*this);
-        return 0.0;
+        return visitor.Visit(*this);
     }
 
     EvaluatedValue ListNode::Accept(Visitor &visitor) const

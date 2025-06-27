@@ -263,6 +263,45 @@ namespace Aleng
         return std::make_unique<ListNode>(std::move(elements), m_Tokens[m_Index].Location);
     }
 
+    NodePtr Parser::ParseMapLiteral()
+    {
+        Token startToken = m_Tokens[m_Index];
+        m_Index++;
+
+        std::vector<std::pair<NodePtr, NodePtr>> elements;
+        bool expectComma = false;
+
+        if (m_Tokens[m_Index].Type != TokenType::RCURLY)
+        {
+            do
+            {
+                if (expectComma)
+                {
+                    if (m_Tokens[m_Index].Type != TokenType::COMMA)
+                        throw AlengError("Expected ',' or '}' in map literal.", m_Tokens[m_Index].Location);
+                    m_Index++;
+                }
+
+                NodePtr keyExpr = Expression();
+
+                if (m_Tokens[m_Index].Type != TokenType::COLON)
+                    throw AlengError("Expected ':' to assign value to key in map literal.", m_Tokens[m_Index].Location);
+
+                m_Index++;
+
+                NodePtr valueExpr = Expression();
+
+                elements.emplace_back(std::move(keyExpr), std::move(valueExpr));
+                expectComma = true;
+            } while (m_Tokens[m_Index].Type == TokenType::COMMA);
+
+            if (m_Tokens[m_Index].Type != TokenType::RCURLY)
+                throw AlengError("Expected '}' to close map literal.", m_Tokens[m_Index].Location);
+        }
+        m_Index++;
+        return std::make_unique<MapNode>(std::move(elements), startToken.Location);
+    }
+
     NodePtr Parser::Expression()
     {
         auto left = AddictiveExpression();
@@ -361,6 +400,8 @@ namespace Aleng
             m_Index++;
             primaryExpr = std::move(expr);
         }
+        else if (token.Type == TokenType::LCURLY)
+            primaryExpr = ParseMapLiteral();
         else if (token.Type == TokenType::MINUS)
         {
             m_Index++;

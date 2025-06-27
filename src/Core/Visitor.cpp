@@ -209,6 +209,62 @@ namespace Aleng
 
                 throw AlengError(
                     "Object of type '" + AlengTypeToString(GetAlengType(objectVal)) + "' not supported for Pop function.", ctx); }));
+
+        m_Functions.emplace("Assert", Callable([&](Visitor &visitor, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
+                                               {
+                        if (args.size() != 2)
+                            throw AlengError("Assert syntax incorrect. Expected: Assert(condition : Boolean, errorMessage : String)", ctx);
+
+                        auto conditionVal = args[0];
+                        auto messageVal = args[1];
+
+                        if (auto pCondition = std::get_if<bool>(&conditionVal))
+                        {
+                            if(auto pMessageStr = std::get_if<std::string>(&messageVal))
+                            {
+                                if(!(*pCondition))
+                                {
+                                    std::stringstream ss;
+                                    ss << "Assert Failed: ";
+                                    ss << *pMessageStr;
+                                    throw AlengError(ss.str(), ctx);
+                                }
+                                return true;
+                            }
+                            else throw AlengError("Message must be an String.", ctx);
+                        }
+                        else
+                            throw AlengError("Condition must be an Boolean.", ctx); }));
+
+        m_Functions.emplace("ReadFile", Callable([&](Visitor &visitor, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
+                                                 {
+            if(args.size() != 1)
+                throw AlengError("ReadFile syntax incorrect. Expected ReadFile(path : String) -> String", ctx);
+
+            auto filePathVal = args[0];
+
+            if(auto pFilepath = std::get_if<std::string>(&filePathVal))
+            {
+                auto filepath = fs::absolute(fs::path(*pFilepath));
+
+                if(!fs::exists(filepath))
+                    throw AlengError("Path '" + filepath.string() + "' not exists.", ctx);
+
+                if(fs::is_directory(filepath))
+                    throw AlengError("Path '" + filepath.string() + "' is a directory, not an file.", ctx);
+                    
+                std::ifstream file(filepath);
+                
+                if(!file.is_open())
+                    throw AlengError("Path '" + filepath.string() + "' could not be opened.", ctx);
+                
+                std::stringstream buffer;
+                buffer << file.rdbuf();
+                file.close();
+
+                return buffer.str();
+
+            } else throw AlengError("'path' must be an String.", ctx); }));
     }
 
     void Visitor::LoadModuleFiles(std::map<std::string, fs::path> moduleFiles)

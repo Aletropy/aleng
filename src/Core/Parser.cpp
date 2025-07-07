@@ -33,6 +33,8 @@ namespace Aleng
             return ParseFunctionDefinition();
         else if (token.Type == TokenType::FOR)
             return ParseForStatement();
+        else if (token.Type == TokenType::WHILE)
+            return ParseWhileStatement();
         else if (token.Type == TokenType::RETURN)
         {
             m_Index++;
@@ -173,6 +175,32 @@ namespace Aleng
         }
         else
             throw AlengError("Expected '=' or 'in' after iterator variable in For loop.", m_Tokens[m_Index].Location);
+    }
+
+    NodePtr Parser::ParseWhileStatement()
+    {
+        m_Index++;
+        auto token = m_Tokens[m_Index];
+
+        if (m_Index >= m_Tokens.size())
+            throw AlengError("Unexpected end of input after While <condition>.", m_Tokens[m_Index].Location);
+
+        NodePtr body;
+        std::vector<NodePtr> bodyStatements;
+
+        NodePtr condition = Expression();
+
+        auto bodyStartToken = m_Tokens[m_Index];
+
+        while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END)
+            bodyStatements.push_back(Statement());
+        if (m_Tokens[m_Index].Type != TokenType::END)
+            throw AlengError("Expected 'End' to close 'While' statement.", m_Tokens[m_Index].Location);
+
+        m_Index++;
+        body = std::make_unique<BlockNode>(std::move(bodyStatements), bodyStartToken.Location);
+
+        return std::make_unique<WhileStatementNode>(std::move(condition), std::move(body), token.Location);
     }
 
     NodePtr Parser::ParseFunctionDefinition()

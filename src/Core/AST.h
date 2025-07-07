@@ -311,7 +311,38 @@ namespace Aleng
             throw std::runtime_error("Invalid ForStatementNode state for cloning.");
         }
 
-        EvaluatedValue Accept(Visitor &visitor) const override; // Implementar em AST.cpp
+        EvaluatedValue Accept(Visitor &visitor) const override;
+    };
+
+    struct WhileStatementNode : ASTNode
+    {
+        NodePtr Condition;
+        NodePtr Body;
+
+        WhileStatementNode(NodePtr cond, NodePtr body, TokenLocation loc)
+            : Condition(std::move(cond)), Body(std::move(body))
+        {
+            this->Location = loc;
+        }
+
+        void Print(std::ostream &os) const override
+        {
+            os << "While ";
+            Condition->Print(os);
+            os << " {\n";
+            if (Body)
+                Body->Print(os);
+            os << "\n} End";
+        }
+
+        NodePtr Clone() const override
+        {
+            return std::make_unique<WhileStatementNode>(
+                Condition ? Condition->Clone() : nullptr,
+                Body ? Body->Clone() : nullptr, Location);
+        }
+
+        EvaluatedValue Accept(Visitor &visitor) const override;
     };
 
     struct FunctionDefinitionNode : ASTNode

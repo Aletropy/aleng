@@ -33,6 +33,7 @@ namespace Aleng
         EvaluatedValue Visit(const BlockNode &node);
         EvaluatedValue Visit(const IfNode &node);
         EvaluatedValue Visit(const ForStatementNode &node);
+        EvaluatedValue Visit(const WhileStatementNode &node);
         EvaluatedValue Visit(const ListNode &node);
         EvaluatedValue Visit(const MapNode &node);
         EvaluatedValue Visit(const BooleanNode &node);

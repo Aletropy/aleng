@@ -67,6 +67,11 @@ namespace Aleng
         return visitor.Visit(*this);
     }
 
+    EvaluatedValue WhileStatementNode::Accept(Visitor &visitor) const
+    {
+        return visitor.Visit(*this);
+    }
+
     EvaluatedValue BlockNode::Accept(Visitor &visitor) const
     {
         return visitor.Visit(*this);

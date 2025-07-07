@@ -470,6 +470,47 @@ namespace Aleng
         return lastResult;
     }
 
+    EvaluatedValue Visitor::Visit(const WhileStatementNode &node)
+    {
+        EvaluatedValue lastResult = 0.0;
+        PushScope();
+
+        while (true)
+        {
+            auto conditionResult = node.Condition->Accept(*this);
+            if (!IsTruthy(conditionResult))
+            {
+                break;
+            }
+
+            try
+            {
+                lastResult = node.Body->Accept(*this);
+            }
+            catch (const ContinueSignal &signal)
+            {
+                continue;
+            }
+            catch (const BreakSignal &signal)
+            {
+                break;
+            }
+            catch (const ReturnSignal &signal)
+            {
+                PopScope();
+                return signal.Value;
+            }
+            catch (const AlengError &error)
+            {
+                PopScope();
+                throw error; // Propagate error
+            }
+        }
+
+        PopScope();
+        return lastResult;
+    }
+
     EvaluatedValue Visitor::Visit(const IfNode &node)
     {
         EvaluatedValue conditionResult = node.Condition->Accept(*this);

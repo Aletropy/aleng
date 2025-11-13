@@ -54,8 +54,8 @@ namespace Aleng
         EvaluatedValue Visit(const EqualsExpressionNode &node);
 
     private:
-        bool IsTruthy(const EvaluatedValue &val);
-        AlengType GetAlengType(const EvaluatedValue &val);
+        static bool IsTruthy(const EvaluatedValue &val);
+        static AlengType GetAlengType(const EvaluatedValue &val);
 
         void PushScope();
         void PopScope();

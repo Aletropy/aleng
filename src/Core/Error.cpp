@@ -2,12 +2,12 @@
 
 namespace Aleng
 {
-    void PrintFormattedError(const AlengError &err, const std::string &sourceCode, const std::string &filePath)
+    void PrintFormattedError(const AlengError &err, const std::string &sourceCode)
     {
         std::cerr << "Runtime Error: " << err.what() << std::endl;
 
-        auto [Line, Column] = err.GetLocation();
-        std::cerr << "  --> " << filePath << ":" << Line << ":" << Column << std::endl;
+        auto [Line, Column, FilePath] = err.GetLocation();
+        std::cerr << "  --> " << FilePath << ":" << Line << ":" << Column << std::endl;
         std::cerr << "    |" << std::endl;
 
         std::vector<std::string> lines;

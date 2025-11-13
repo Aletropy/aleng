@@ -8,7 +8,7 @@ namespace Aleng
     class Parser
     {
     public:
-        Parser(const std::string &input);
+        Parser(const std::string &input, std::string filepath = "unknown");
         std::unique_ptr<ProgramNode> ParseProgram();
 
     private:

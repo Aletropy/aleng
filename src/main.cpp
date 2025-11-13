@@ -31,7 +31,7 @@ void RunREPL(Visitor &visitor)
 
         try
         {
-            auto parser = Parser(ss.str());
+            auto parser = Parser(ss.str(), "REPL");
             auto ast = parser.ParseProgram();
 
             auto result = ast->Accept(visitor);
@@ -39,7 +39,7 @@ void RunREPL(Visitor &visitor)
         catch (const AlengError &err)
         {
             std::string sourceCode = ss.str();
-            PrintFormattedError(err, sourceCode, "REPL");
+            PrintFormattedError(err, sourceCode);
         }
         catch (const std::runtime_error &err)
         {
@@ -142,11 +142,6 @@ int main(int argc, char *argv[])
         if (fs::exists(resolvedMainFilePath))
         {
             auto result = Visitor::ExecuteAlengFile(resolvedMainFilePath.string(), visitor);
-
-            // if (auto d = std::get_if<double>(&result))
-            //     std::cout << *d << std::endl;
-            // if (auto s = std::get_if<std::string>(&result))
-            //     std::cout << *s << std::endl;
         }
         else
         {
@@ -156,18 +151,19 @@ int main(int argc, char *argv[])
     }
     catch (const AlengError &err)
     {
-        std::string sourceCode = "";
-        std::string filepath = "";
-        if (!resolvedMainFilePath.empty())
+        std::string sourceCode;
+
+        if (std::string filepath = err.GetLocation().FilePath; !filepath.empty() && filepath != "REPL")
         {
-            std::ifstream file(resolvedMainFilePath);
-            std::stringstream buffer;
-            buffer << file.rdbuf();
-            sourceCode = buffer.str();
-            filepath = resolvedMainFilePath.string();
+            if (std::ifstream file(filepath); file)
+            {
+                std::stringstream buffer;
+                buffer << file.rdbuf();
+                sourceCode = buffer.str();
+            }
         }
 
-        PrintFormattedError(err, sourceCode, filepath);
+        PrintFormattedError(err, sourceCode);
     }
     catch (const std::runtime_error &err)
     {

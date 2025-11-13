@@ -64,6 +64,7 @@ namespace Aleng
     {
         int Line = 1;
         int Column = 1;
+        std::string FilePath;
     };
 
     struct Token

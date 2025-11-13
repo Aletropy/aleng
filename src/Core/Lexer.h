@@ -9,7 +9,7 @@ namespace Aleng
     class Lexer
     {
     public:
-        Lexer(const std::string &input);
+        Lexer(std::string input, std::string  filepath = "unknown");
         std::vector<Token> Tokenize();
 
     private:
@@ -17,6 +17,7 @@ namespace Aleng
 
     private:
         std::string m_Input;
+        std::string m_FilePath;
         int m_Index = 0;
         int m_Line = 1;
         int m_Column = 1;

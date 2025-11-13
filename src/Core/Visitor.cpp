@@ -93,10 +93,7 @@ namespace Aleng
         }
 
         if (m_SymbolTableStack.empty())
-        {
-            std::cerr << "Warning: Symbol table stack was empty, re-initializing global scope." << std::endl;
-            PushScope();
-        }
+            throw std::runtime_error("Symbol table stack was empty, no global scope.");
     }
 
     void Visitor::DefineVariable(const std::string &name, const EvaluatedValue &value, bool allowRedefinitionCurrentScope)
@@ -327,7 +324,7 @@ namespace Aleng
         file.close();
 
         std::string sourceCode = buffer.str();
-        auto parser = Parser(sourceCode);
+        auto parser = Parser(sourceCode, filepath);
         auto programAst = parser.ParseProgram();
 
         return programAst->Accept(visitor);
@@ -741,7 +738,10 @@ namespace Aleng
                              {
                                  areEqual = l->Name == r->Name;
                              },
-                             [&](auto &l, auto &r) {}},
+                             [&](auto &l, auto &r)
+                             {
+                                 throw AlengError("Invalid types for equality comparison.", node);
+                             }},
                    left, right);
 
         if (node.Inverse)

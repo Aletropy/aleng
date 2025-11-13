@@ -24,5 +24,5 @@ namespace Aleng
         TokenLocation m_Location;
     };
 
-    void PrintFormattedError(const AlengError &err, const std::string &sourceCode, const std::string &filePath);
+    void PrintFormattedError(const AlengError &err, const std::string &sourceCode);
 }

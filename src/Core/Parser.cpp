@@ -4,9 +4,9 @@
 
 namespace Aleng
 {
-    Parser::Parser(const std::string &input)
+    Parser::Parser(const std::string &input, std::string filepath)
     {
-        auto lexer = Lexer(input);
+        auto lexer = Lexer(input, std::move(filepath));
         m_Tokens = lexer.Tokenize();
         m_Index = 0;
     }
@@ -60,9 +60,12 @@ namespace Aleng
 
     NodePtr Parser::ParseIfStatement()
     {
+        Token startToken = m_Tokens[m_Index];
         m_Index++;
+
         auto condition = Expression();
 
+        auto thenBlockStartLoc = m_Tokens[m_Index].Location;
         std::vector<NodePtr> thenStatements;
 
         while (m_Index < m_Tokens.size() &&
@@ -73,12 +76,13 @@ namespace Aleng
             thenStatements.push_back(Statement());
         }
 
-        NodePtr thenBranch = std::make_unique<BlockNode>(std::move(thenStatements), m_Tokens[m_Index].Location);
+        NodePtr thenBranch = std::make_unique<BlockNode>(std::move(thenStatements), thenBlockStartLoc);
         NodePtr elseBranch = nullptr;
 
         if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::ELSE)
         {
             m_Index++;
+            auto elseBlockStartLoc = m_Tokens[m_Index].Location;
             std::vector<NodePtr> elseStatements;
             while (m_Index < m_Tokens.size() &&
                    m_Tokens[m_Index].Type != TokenType::END &&
@@ -86,7 +90,7 @@ namespace Aleng
             {
                 elseStatements.push_back(Statement());
             }
-            elseBranch = std::make_unique<BlockNode>(std::move(elseStatements), m_Tokens[m_Index].Location);
+            elseBranch = std::make_unique<BlockNode>(std::move(elseStatements), elseBlockStartLoc);
         }
 
         if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::END)
@@ -95,11 +99,12 @@ namespace Aleng
             throw AlengError("Expected 'end' to close 'if' statement.", m_Tokens[m_Index].Location);
 
         return std::make_unique<IfNode>(
-            std::move(condition), std::move(thenBranch), std::move(elseBranch), m_Tokens[m_Index].Location);
+            std::move(condition), std::move(thenBranch), std::move(elseBranch), startToken.Location);
     }
 
     NodePtr Parser::ParseForStatement()
     {
+        Token startToken = m_Tokens[m_Index];
         m_Index++;
 
         if (m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
@@ -112,6 +117,7 @@ namespace Aleng
             throw AlengError("Unexpected end of input after For <iterator>.", m_Tokens[m_Index].Location);
 
         NodePtr body;
+        auto bodyStartLoc = m_Tokens[m_Index].Location;
         std::vector<NodePtr> bodyStatements;
 
         if (m_Tokens[m_Index].Type == TokenType::ASSIGN)
@@ -152,12 +158,12 @@ namespace Aleng
                 throw AlengError("Expected 'End' to close 'For' statement.", m_Tokens[m_Index].Location);
 
             m_Index++;
-            body = std::make_unique<BlockNode>(std::move(bodyStatements), m_Tokens[m_Index].Location);
+            body = std::make_unique<BlockNode>(std::move(bodyStatements), bodyStartLoc);
 
             ForNumericRange numericInfo = {iteratorVarName, std::move(startExpr), std::move(endExpr), std::move(stepExpr), isUntil};
-            return std::make_unique<ForStatementNode>(numericInfo, std::move(body), m_Tokens[m_Index].Location);
+            return std::make_unique<ForStatementNode>(numericInfo, std::move(body), startToken.Location);
         }
-        else if (m_Tokens[m_Index].Type == TokenType::IN)
+        if (m_Tokens[m_Index].Type == TokenType::IN)
         {
             m_Index++;
             NodePtr collectionExpr = Expression();
@@ -167,30 +173,27 @@ namespace Aleng
             if (m_Tokens[m_Index].Type != TokenType::END)
                 throw AlengError("Expected 'End' to close 'For' statement.", m_Tokens[m_Index].Location);
 
-            body = std::make_unique<BlockNode>(std::move(bodyStatements), m_Tokens[m_Index].Location);
+            body = std::make_unique<BlockNode>(std::move(bodyStatements), bodyStartLoc);
             m_Index++;
 
             ForCollectionRange collectionInfo = {iteratorVarName, std::move(collectionExpr)};
-            return std::make_unique<ForStatementNode>(collectionInfo, std::move(body), m_Tokens[m_Index].Location);
+            return std::make_unique<ForStatementNode>(collectionInfo, std::move(body), startToken.Location);
         }
-        else
-            throw AlengError("Expected '=' or 'in' after iterator variable in For loop.", m_Tokens[m_Index].Location);
+
+        throw AlengError("Expected '=' or 'in' after iterator variable in For loop.", m_Tokens[m_Index].Location);
     }
 
     NodePtr Parser::ParseWhileStatement()
     {
+        Token startToken = m_Tokens[m_Index];
         m_Index++;
-        auto token = m_Tokens[m_Index];
 
         if (m_Index >= m_Tokens.size())
-            throw AlengError("Unexpected end of input after While <condition>.", m_Tokens[m_Index].Location);
-
-        NodePtr body;
-        std::vector<NodePtr> bodyStatements;
-
-        NodePtr condition = Expression();
+            throw AlengError("Unexpected end of input after While <condition>.", startToken.Location);
 
         auto bodyStartToken = m_Tokens[m_Index];
+        std::vector<NodePtr> bodyStatements;
+        NodePtr condition = Expression();
 
         while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END)
             bodyStatements.push_back(Statement());
@@ -198,29 +201,35 @@ namespace Aleng
             throw AlengError("Expected 'End' to close 'While' statement.", m_Tokens[m_Index].Location);
 
         m_Index++;
-        body = std::make_unique<BlockNode>(std::move(bodyStatements), bodyStartToken.Location);
+        NodePtr body = std::make_unique<BlockNode>(std::move(bodyStatements), bodyStartToken.Location);
 
-        return std::make_unique<WhileStatementNode>(std::move(condition), std::move(body), token.Location);
+        return std::make_unique<WhileStatementNode>(std::move(condition), std::move(body), startToken.Location);
     }
 
     NodePtr Parser::ParseFunctionDefinition()
     {
+        Token startToken = m_Tokens[m_Index];
         m_Index++;
 
         if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
             throw AlengError("Expected function name", m_Tokens[m_Index].Location);
 
-        auto nameToken = m_Tokens[m_Index];
-        std::string funcName = nameToken.Value;
-        if (Peek().Type != TokenType::LPAREN)
-            throw AlengError("Expected '(' after function name", m_Tokens[m_Index].Location);
-        m_Index += 2;
+        std::string funcName = m_Tokens[m_Index].Value;
+
+        m_Index++;
+        if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::LPAREN)
+            throw AlengError("Expected '(' after function name", m_Tokens[m_Index - 1].Location);
+        m_Index ++;
+
         std::vector<Parameter> params;
         bool expectComma = false;
         while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::RPAREN)
         {
             if (expectComma && m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::COMMA && m_Tokens[m_Index].Type != TokenType::RPAREN)
+            {
                 throw AlengError("Expected ',' between parameters or ')'", m_Tokens[m_Index].Location);
+                m_Index++;
+            }
 
             if (expectComma)
                 m_Index++;
@@ -258,16 +267,17 @@ namespace Aleng
         }
 
         m_Index++;
+        auto bodyStartLoc = m_Tokens[m_Index].Location;
         std::vector<NodePtr> bodyStatements;
         while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END && m_Tokens[m_Index].Type != TokenType::END_OF_FILE)
         {
             bodyStatements.push_back(Statement());
         }
 
-        NodePtr body = std::make_unique<BlockNode>(std::move(bodyStatements), m_Tokens[m_Index].Location);
+        NodePtr body = std::make_unique<BlockNode>(std::move(bodyStatements), bodyStartLoc);
         m_Index++;
 
-        return std::make_unique<FunctionDefinitionNode>(funcName, std::move(params), std::move(body), m_Tokens[m_Index].Location);
+        return std::make_unique<FunctionDefinitionNode>(funcName, std::move(params), std::move(body), startToken.Location);
     }
 
     NodePtr Parser::ParseBlock()

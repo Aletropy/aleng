@@ -1,20 +1,21 @@
 #include "Lexer.h"
 
 #include <iostream>
+#include <utility>
 #include "Error.h"
 
 namespace Aleng
 {
-    Lexer::Lexer(const std::string &input)
-        : m_Input(input), m_Index(0)
+    Lexer::Lexer(std::string input, std::string  filepath)
+        : m_Input(std::move(input)), m_FilePath(std::move(filepath))
     {
     }
 
     Token Lexer::Next()
     {
-        TokenLocation startLoc = {m_Line, m_Column};
+        TokenLocation startLoc = {m_Line, m_Column, m_FilePath};
 
-        auto advance = [&](int count = 1)
+        auto advance = [&](const int count = 1)
         {
             for (int i = 0; i < count; ++i)
             {
@@ -46,7 +47,7 @@ namespace Aleng
                 if (m_Index + 1 < m_Input.length() && m_Input[m_Index + 1] == '#')
                 {
                     advance(2);
-                    startLoc = {m_Line, m_Column};
+                    startLoc = {m_Line, m_Column, m_FilePath};
 
                     while (m_Index + 1 < m_Input.length() && !(m_Input[m_Index] == '#' && m_Input[m_Index + 1] == '#'))
                     {
@@ -77,14 +78,14 @@ namespace Aleng
             return {TokenType::END_OF_FILE, "", startLoc};
         }
 
-        startLoc = {m_Line, m_Column};
+        startLoc = {m_Line, m_Column, m_FilePath};
 
         auto c = m_Input[m_Index];
 
         // Number verification
         if (std::isdigit(c))
         {
-            std::string value = "";
+            std::string value;
 
             while (m_Index < m_Input.length() && std::isdigit(m_Input[m_Index]))
             {
@@ -92,7 +93,7 @@ namespace Aleng
                 advance();
             }
 
-            startLoc = {m_Line, m_Column};
+            startLoc = {m_Line, m_Column, m_FilePath};
 
             if (m_Input[m_Index] == '.')
             {
@@ -107,7 +108,7 @@ namespace Aleng
                     advance();
                 }
 
-                startLoc = {m_Line, m_Column};
+                startLoc = {m_Line, m_Column, m_FilePath};
 
                 return {
                     TokenType::FLOAT, value, startLoc};
@@ -118,7 +119,7 @@ namespace Aleng
 
         if (std::isalpha(c) || c == '_')
         {
-            std::string value = "";
+            std::string value;
 
             while (std::isalnum(m_Input[m_Index]) || m_Input[m_Index] == '_')
             {
@@ -184,7 +185,7 @@ namespace Aleng
         if (c == '"')
         {
             advance();
-            std::string value = "";
+            std::string value;
 
             while (m_Index < m_Input.length() && m_Input[m_Index] != '"')
             {
@@ -219,10 +220,7 @@ namespace Aleng
             }
 
             if (m_Input[m_Index] != '"')
-            {
                 throw AlengError("Expected string termination.", startLoc);
-                return {TokenType::UNKNOWN, c, startLoc};
-            }
 
             advance();
             return {TokenType::STRING, value, startLoc};
@@ -316,20 +314,22 @@ namespace Aleng
         case ']':
             advance();
             return {TokenType::RBRACE, c, startLoc};
+        default:
+            advance();
+            return {TokenType::UNKNOWN, c, startLoc};
         }
-
-        advance();
-        return {TokenType::UNKNOWN, c, startLoc};
     }
 
     std::vector<Token> Lexer::Tokenize()
     {
         auto tokens = std::vector<Token>();
-        while (m_Index < m_Input.length())
+        Token token = Next();
+        while (token.Type != TokenType::END_OF_FILE)
         {
-            tokens.push_back(Next());
+            tokens.push_back(token);
+            token = Next();
         }
-        tokens.push_back({TokenType::END_OF_FILE, "", {m_Line, m_Column}});
+        tokens.push_back(token);
         return tokens;
     }
 }

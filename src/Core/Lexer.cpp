@@ -82,6 +82,15 @@ namespace Aleng
 
         auto c = m_Input[m_Index];
 
+        if (c == '.')
+        {
+            if (m_Index + 1 < m_Input.length() && m_Input[m_Index + 1] == '.')
+            {
+                advance(2);
+                return {TokenType::RANGE, "..", startLoc};
+            }
+        }
+
         // Number verification
         if (std::isdigit(c))
         {
@@ -95,20 +104,16 @@ namespace Aleng
 
             startLoc = {m_Line, m_Column, m_FilePath};
 
-            if (m_Input[m_Index] == '.')
+            if (m_Index < m_Input.length() && m_Input[m_Index] == '.' &&
+             m_Index + 1 < m_Input.length() && std::isdigit(m_Input[m_Index + 1]))
             {
-                if (m_Index + 1 < m_Input.length() && m_Input[m_Index + 1] == '.')
-                    return {TokenType::INTEGER, value, startLoc};
-
-                advance();
                 value += ".";
+                advance();
                 while (m_Index < m_Input.length() && std::isdigit(m_Input[m_Index]))
                 {
                     value += m_Input[m_Index];
                     advance();
                 }
-
-                startLoc = {m_Line, m_Column, m_FilePath};
 
                 return {
                     TokenType::FLOAT, value, startLoc};
@@ -171,15 +176,6 @@ namespace Aleng
         {
             advance();
             return {TokenType::DOLLAR, '$', startLoc};
-        }
-
-        if (c == '.')
-        {
-            if (m_Index + 1 < m_Input.length() && m_Input[m_Index] == '.')
-            {
-                advance(2);
-                return {TokenType::RANGE, "..", startLoc};
-            }
         }
 
         if (c == '"')

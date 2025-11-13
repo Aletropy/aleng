@@ -223,8 +223,15 @@ namespace Aleng
 
         std::vector<Parameter> params;
         bool expectComma = false;
+        bool processedVariadic = false;
         while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::RPAREN)
         {
+            if (processedVariadic)
+            {
+                throw AlengError("Variadic parameters must be the last parameters in a function definition.", m_Tokens[m_Index].Location);
+                break;
+            }
+
             if (expectComma && m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::COMMA && m_Tokens[m_Index].Type != TokenType::RPAREN)
             {
                 throw AlengError("Expected ',' between parameters or ')'", m_Tokens[m_Index].Location);
@@ -239,6 +246,7 @@ namespace Aleng
             {
                 m_Index++;
                 isVariadic = true;
+                processedVariadic = true;
             }
 
             if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
@@ -261,8 +269,6 @@ namespace Aleng
             }
 
             params.emplace_back(paramName, typeName, isVariadic);
-            if (isVariadic && Peek().Type != TokenType::RPAREN)
-                throw AlengError("Variadic parameter '$" + paramName + "' must be the last parameter.", m_Tokens[m_Index].Location);
             expectComma = true;
         }
 

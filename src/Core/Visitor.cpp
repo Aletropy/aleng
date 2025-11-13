@@ -752,7 +752,7 @@ namespace Aleng
 
     EvaluatedValue Visitor::Visit(const FunctionDefinitionNode &node)
     {
-        if (m_Functions.count(node.FunctionName))
+        if (m_Functions.contains(node.FunctionName))
         {
             std::cout << "Warning: Redefining function '" << node.FunctionName << "'." << std::endl;
         }
@@ -761,9 +761,11 @@ namespace Aleng
 
         SymbolTableStack currentEnv = m_SymbolTableStack;
 
+        auto funcObject = std::make_unique<FunctionObject>(node.FunctionName, funcNodeCopy, currentEnv);
+
         m_Functions.erase(node.FunctionName);
         m_Functions.emplace(node.FunctionName, Callable(std::move(funcNodeCopy), std::move(currentEnv)));
-        return false;
+        return FunctionStorage(std::move(funcObject));
     }
 
     EvaluatedValue Visitor::Visit(const FunctionCallNode &node)
@@ -799,9 +801,23 @@ namespace Aleng
             const auto &funcDef = *funcObj.UserFuncNodeAst;
 
             size_t argIdx = 0;
+            bool variadicProcessed = false;
 
             for (const auto &param : funcDef.Parameters)
             {
+                if (param.IsVariadic)
+                {
+                    auto variadicList = std::make_shared<ListRecursiveWrapper>();
+                    for (size_t i = argIdx; i < resolvedArgs.size(); ++i)
+                    {
+                        variadicList->elements.push_back(resolvedArgs[i]);
+                    }
+                    DefineVariable(param.Name, variadicList, false);
+                    argIdx = resolvedArgs.size();
+                    variadicProcessed = true;
+                    break;
+                }
+
                 if (argIdx >= resolvedArgs.size())
                 {
                     PopScope();
@@ -839,7 +855,7 @@ namespace Aleng
                 argIdx++;
             }
 
-            if (argIdx < resolvedArgs.size())
+            if (!variadicProcessed && argIdx < resolvedArgs.size())
             {
                 PopScope();
                 throw AlengError("Too many arguments for function '" + funcDef.FunctionName + "'. Expected " + std::to_string(funcDef.Parameters.size()) + " arguments, got " + std::to_string(resolvedArgs.size()) + ".", node);
@@ -856,6 +872,7 @@ namespace Aleng
                 result = signal.Value;
             }
 
+            PopScope();
             m_SymbolTableStack = callingEnvironment;
 
             return result;

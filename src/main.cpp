@@ -65,28 +65,26 @@ int main(int argc, char *argv[])
             RunREPL(visitor);
             return 0;
         }
+
+        fs::path targetPath(argument);
+
+        if (fs::is_directory(targetPath))
+        {
+            workspacePath = targetPath;
+            if (!fs::exists(workspacePath / mainFilename))
+            {
+                std::cerr << "Error: " << mainFilename << " not found in " << workspacePath << std::endl;
+                return 1;
+            }
+        }
+        else if (fs::is_regular_file(targetPath))
+        {
+            workspacePath = targetPath.parent_path();
+            mainFilename = targetPath.filename().string();
+        }
         else
         {
-            fs::path targetPath(argument);
-
-            if (fs::is_directory(targetPath))
-            {
-                workspacePath = targetPath;
-                if (!fs::exists(workspacePath / mainFilename))
-                {
-                    std::cerr << "Error: " << mainFilename << " not found in " << workspacePath << std::endl;
-                    return 1;
-                }
-            }
-            else if (fs::is_regular_file(targetPath))
-            {
-                workspacePath = targetPath.parent_path();
-                mainFilename = targetPath.filename().string();
-            }
-            else
-            {
-                std::cerr << "Error: invalid path " << argument << std::endl;
-            }
+            std::cerr << "Error: invalid path " << argument << std::endl;
         }
     }
     else

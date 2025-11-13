@@ -6,8 +6,8 @@ namespace Aleng
     {
         std::cerr << "Runtime Error: " << err.what() << std::endl;
 
-        auto loc = err.GetLocation();
-        std::cerr << "  --> " << filePath << ":" << loc.Line << ":" << loc.Column << std::endl;
+        auto [Line, Column] = err.GetLocation();
+        std::cerr << "  --> " << filePath << ":" << Line << ":" << Column << std::endl;
         std::cerr << "    |" << std::endl;
 
         std::vector<std::string> lines;
@@ -17,15 +17,15 @@ namespace Aleng
         while (std::getline(ss, line))
             lines.push_back(line);
 
-        if (loc.Line > 0 && loc.Line <= lines.size())
+        if (Line > 0 && Line <= lines.size())
         {
-            std::string lineNumStr = std::to_string(loc.Line);
-            std::cerr << " " << lineNumStr << " | " << lines[loc.Line - 1] << std::endl;
+            const std::string lineNumStr = std::to_string(Line);
+            std::cerr << " " << lineNumStr << " | " << lines[Line - 1] << std::endl;
 
             std::cerr << "    | ";
-            for (int i = 0; i < loc.Column; i++)
+            for (int i = 0; i < Column; i++)
             {
-                if (lines[loc.Line - 1][i] == '\t')
+                if (lines[Line - 1][i] == '\t')
                     std::cerr << '\t';
                 else
                     std::cerr << ' ';

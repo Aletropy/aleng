@@ -520,7 +520,7 @@ namespace Aleng
         void Print(std::ostream &os) const override
         {
             Left->Print(os);
-            os << Inverse ? "!=" : "==";
+            os << (Inverse ? "!=" : "==");
             Right->Print(os);
             os << "\n";
         }

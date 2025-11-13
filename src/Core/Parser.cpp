@@ -482,6 +482,8 @@ namespace Aleng
         auto token = m_Tokens[m_Index];
         NodePtr primaryExpr = nullptr;
 
+
+
         if (token.Type == TokenType::TRUE)
         {
             m_Index++;

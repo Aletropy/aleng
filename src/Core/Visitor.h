@@ -61,8 +61,9 @@ namespace Aleng
         void PopScope();
 
         void DefineVariable(const std::string &name, const EvaluatedValue &value, bool allowRedefinitionCurrentScope = true);
+        void AssignVariable(const std::string& name, const EvaluatedValue& value);
         EvaluatedValue LookupVariable(const std::string &name);
-        bool IsVariableDefinedInCurrentScope(const std::string &name);
+        bool IsVariableDefinedInCurrentScope(const std::string &name) const;
 
         using BuiltinFunctionCallback = std::function<EvaluatedValue(Visitor &, const std::vector<EvaluatedValue> &, const FunctionCallNode &)>;
 

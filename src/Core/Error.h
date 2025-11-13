@@ -7,7 +7,7 @@
 
 namespace Aleng
 {
-    class AlengError : public std::runtime_error
+    class AlengError final : public std::runtime_error
     {
     public:
         AlengError(const std::string &message, TokenLocation location)
@@ -15,7 +15,7 @@ namespace Aleng
         AlengError(const std::string &message, const ASTNode &node)
             : std::runtime_error(message), m_Location(node.Location) {}
 
-        TokenLocation GetLocation() const
+        [[nodiscard]] TokenLocation GetLocation() const
         {
             return m_Location;
         }

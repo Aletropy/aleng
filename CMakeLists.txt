@@ -6,8 +6,6 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD_EXTENSIONS OFF)
 
-find_package(glfw3 REQUIRED)
-
 add_executable(Aleng
     src/main.cpp
     src/Core/Error.h
@@ -21,12 +19,6 @@ add_executable(Aleng
     src/Core/Parser.cpp
     src/Core/Visitor.h
     src/Core/Visitor.cpp
-    src/Window/Window.h
-    src/Window/Window.cpp
-)
-
-target_link_libraries(Aleng PRIVATE
-    glfw
 )
 
 target_include_directories(Aleng PUBLIC

@@ -1,3 +1,5 @@
 build/
-test/
+sandbox/
+
+.idea/
 .vscode/

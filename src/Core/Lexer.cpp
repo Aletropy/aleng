@@ -31,10 +31,45 @@ namespace Aleng
             }
         };
 
-        while (m_Input[m_Index] == ' ' || m_Input[m_Index] == '\t' || m_Input[m_Index] == '\n')
+        while (m_Index < m_Input.length())
         {
-            startLoc = {m_Line, m_Column};
-            advance();
+            const char currentChar = m_Input[m_Index];
+
+            if (isspace(currentChar))
+            {
+                advance();
+                continue;
+            }
+
+            if (currentChar == '#')
+            {
+                if (m_Index + 1 < m_Input.length() && m_Input[m_Index + 1] == '#')
+                {
+                    advance(2);
+                    startLoc = {m_Line, m_Column};
+
+                    while (m_Index + 1 < m_Input.length() && !(m_Input[m_Index] == '#' && m_Input[m_Index + 1] == '#'))
+                    {
+                        advance();
+                    }
+
+                    if (m_Index + 1 >= m_Input.length())
+                    {
+                        throw AlengError("Multiple lines comment was not closed. Expected '##'.", startLoc);
+                    }
+
+                    advance(2);
+                    continue;
+                }
+
+                while (m_Index < m_Input.length() && m_Input[m_Index] != '\n')
+                {
+                    advance();
+                }
+                continue;
+            }
+
+            break;
         }
 
         if (m_Index >= m_Input.length())
@@ -43,30 +78,6 @@ namespace Aleng
         }
 
         startLoc = {m_Line, m_Column};
-
-        if (m_Input[m_Index] == '#')
-        {
-            if (m_Index + 1 < m_Input.length() && m_Input[m_Index + 1] == '#')
-            {
-                advance(2);
-                while (m_Index < m_Input.size() && m_Input[m_Index] != '#')
-                    advance();
-
-                startLoc = {m_Line, m_Column};
-
-                if (m_Index + 1 >= m_Input.length() || m_Input[m_Index + 1] != '#')
-                    throw AlengError("Expected double '##' to end multiple line comment.", startLoc);
-                advance(2);
-                startLoc = {m_Line, m_Column};
-            }
-
-            advance();
-            while (m_Index < m_Input.size() && m_Input[m_Index] != '\n')
-                advance();
-            advance();
-
-            startLoc = {m_Line, m_Column};
-        }
 
         auto c = m_Input[m_Index];
 
@@ -236,7 +247,7 @@ namespace Aleng
                 advance();
                 return {TokenType::MINOR_EQUAL, "<=", startLoc};
             }
-            return {TokenType::MINOR, ">", startLoc};
+            return {TokenType::MINOR, "<", startLoc};
         }
 
         if (c == '=')

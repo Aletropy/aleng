@@ -1,8 +1,8 @@
 #include "Visitor.h"
 
-#include "Window/Window.h"
 #include <fstream>
 #include <filesystem>
+#include <ranges>
 #include <sstream>
 
 #include "Parser.h"
@@ -110,20 +110,34 @@ namespace Aleng
         m_SymbolTableStack.back()[name] = value;
     }
 
+    void Visitor::AssignVariable(const std::string &name, const EvaluatedValue &value)
+    {
+        for (auto & it : std::ranges::reverse_view(m_SymbolTableStack))
+        {
+            if (it.contains(name))
+            {
+                it[name] = value;
+                return;
+            }
+        }
+
+        m_SymbolTableStack.back()[name] = value;
+    }
+
     EvaluatedValue Visitor::LookupVariable(const std::string &name)
     {
-        for (auto it = m_SymbolTableStack.rbegin(); it != m_SymbolTableStack.rend(); ++it)
-            if (it->count(name))
-                return it->at(name);
+        for (auto & it : std::ranges::reverse_view(m_SymbolTableStack))
+            if (it.contains(name))
+                return it.at(name);
 
         throw std::runtime_error("Identifier \"" + name + "\" not defined.");
     }
 
-    bool Visitor::IsVariableDefinedInCurrentScope(const std::string &name)
+    bool Visitor::IsVariableDefinedInCurrentScope(const std::string &name) const
     {
         if (m_SymbolTableStack.empty())
             return false;
-        return m_SymbolTableStack.back().count(name) > 0;
+        return m_SymbolTableStack.back().contains(name);
     }
 
     void Visitor::RegisterBuiltinFunctions()
@@ -291,6 +305,7 @@ namespace Aleng
                 auto code = static_cast<int>(*pCodeDouble);
                 exit(code);
             } else throw AlengError("'code' must be a number.", ctx); }));
+
     }
 
     void Visitor::LoadModuleFiles(std::map<std::string, fs::path> moduleFiles)
@@ -652,7 +667,7 @@ namespace Aleng
 
         if (auto idNode = dynamic_cast<const IdentifierNode *>(node.Left.get()))
         {
-            DefineVariable(idNode->Value, valueToAssign);
+            AssignVariable(idNode->Value, valueToAssign);
             return valueToAssign;
         }
         else if (auto listAccess = dynamic_cast<const ListAccessNode *>(node.Left.get()))
@@ -944,6 +959,7 @@ namespace Aleng
                     {
                     case TokenType::PLUS:
                         finalValue = EvaluatedValue(l + r);
+                            break;
                     case TokenType::GREATER:
                         finalValue = EvaluatedValue(l > r);
                         break;
@@ -969,16 +985,15 @@ namespace Aleng
                     case TokenType::PLUS:
                         ss << l;
                         ss << std::to_string(r);
-                        finalValue = EvaluatedValue(0.0);
+                        finalValue = ss.str();
                         break;
                     case TokenType::MULTIPLY:
                         for (int i = 0; i < static_cast<int>(r); i++)
                             ss << l;
-                        finalValue = EvaluatedValue(0.0);
+                        finalValue = ss.str();
                         break;
                     default:
                         throw AlengError("Unknown operator for binary expression: " + TokenTypeToString(node.Operator), node);
-                        break;
                     }
                 },
                 [&](ListStorage l, ListStorage r)

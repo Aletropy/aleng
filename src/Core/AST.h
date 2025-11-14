@@ -945,8 +945,8 @@ namespace Aleng
         SymbolTableStack CapturedEnvironment;
 
         FunctionObject(std::string n, std::shared_ptr<FunctionDefinitionNode> funcNode, SymbolTableStack stack)
-            : Name(std::move(n)), Type(Type::USER_DEFINED), CapturedEnvironment(std::move(stack)), UserFuncNodeAst(std::move(funcNode)) {}
-        FunctionObject(std::string n)
+            : Name(std::move(n)), Type(Type::USER_DEFINED), UserFuncNodeAst(std::move(funcNode)), CapturedEnvironment(std::move(stack)) {}
+        explicit FunctionObject(std::string n)
             : Name(std::move(n)), Type(Type::BUILTIN), UserFuncNodeAst(nullptr) {}
     };
 } // namespace Aleng

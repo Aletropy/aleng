@@ -6,6 +6,8 @@
 #include <functional>
 #include <memory>
 
+#include "ModuleManager.h"
+
 namespace Aleng
 {
     enum class AlengType
@@ -23,9 +25,11 @@ namespace Aleng
     class Visitor
     {
     public:
-        explicit Visitor(std::string workspaceRoot = "unknown");
+        explicit Visitor(ModuleManager& moduleManager);
 
         static EvaluatedValue ExecuteAlengFile(const std::string &filepath, Visitor &visitor);
+
+        void RegisterBuiltinCallback(const std::string& name, BuiltinFunctionCallback callback);
 
         EvaluatedValue Visit(const ProgramNode &node);
         EvaluatedValue Visit(const BlockNode &node);
@@ -34,6 +38,8 @@ namespace Aleng
         EvaluatedValue Visit(const WhileStatementNode &node);
         EvaluatedValue Visit(const ListNode &node);
         EvaluatedValue Visit(const MapNode &node);
+
+        EvaluatedValue ExecuteModule(const std::string &sourceCode, const ImportModuleNode &node, const std::string &modulePath);
 
         static EvaluatedValue Visit(const BooleanNode &node);
 
@@ -60,14 +66,14 @@ namespace Aleng
     private:
         static bool IsTruthy(const EvaluatedValue &val);
         static AlengType GetAlengType(const EvaluatedValue &val);
-
+    public:
         void PushScope();
         void PopScope();
-
         void DefineVariable(const std::string &name, const EvaluatedValue &value, bool allowRedefinitionCurrentScope = true);
         void AssignVariable(const std::string& name, const EvaluatedValue& value);
         EvaluatedValue LookupVariable(const std::string &name);
         bool IsVariableDefinedInCurrentScope(const std::string &name) const;
+    private:
 
         using BuiltinFunctionCallback = std::function<EvaluatedValue(Visitor &, const std::vector<EvaluatedValue> &, const FunctionCallNode &)>;
 
@@ -87,14 +93,11 @@ namespace Aleng
             explicit Callable(BuiltinFunctionCallback func) : type(Type::BUILTIN), builtinFunc(std::move(func)) {}
         };
 
-    private:
         SymbolTableStack m_SymbolTableStack;
-        std::unordered_map<std::string, Callable> m_Functions;
+        std::unordered_map<std::string, BuiltinFunctionCallback> m_NativeCallbacks;
 
-        fs::path m_WorkspaceRoot;
+        ModuleManager& m_ModuleManager;
         std::unordered_map<std::string, EvaluatedValue> m_ModuleCache;
-
-        void RegisterBuiltinFunctions();
     };
 
     template <class... Ts>

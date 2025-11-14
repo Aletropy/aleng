@@ -5,6 +5,8 @@
 #include <ranges>
 #include <sstream>
 
+#include "StdLib.h"
+
 #include "Parser.h"
 
 #include "Error.h"
@@ -74,11 +76,55 @@ namespace Aleng
         throw std::runtime_error("Unsupported EvaluatedValue type encountered in GetAlengType.");
     }
 
-    Visitor::Visitor(std::string workspaceRoot)
-        : m_WorkspaceRoot(std::move(workspaceRoot))
+    Visitor::Visitor(ModuleManager& moduleManager)
+        : m_ModuleManager(moduleManager)
     {
         PushScope();
-        RegisterBuiltinFunctions();
+
+        RegisterBuiltinCallback("Print", [&](Visitor &visitor, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
+                                              {
+            for (auto &arg : args)
+                PrintEvaluatedValue(arg);
+            return 0.0; });
+
+        RegisterBuiltinCallback("PrintRaw", [&](Visitor &visitor, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
+                                                 {
+            for (auto &arg : args)
+                PrintEvaluatedValue(arg, true);
+            return 0.0; });
+
+        for (auto stdLibs = StdLib::GetLibraries(); const auto& [name, source] : stdLibs)
+        {
+            try
+            {
+                Parser parser(source, name);
+                const auto ast = parser.ParseProgram();
+
+                PushScope();
+                ast->Accept(*this);
+
+                auto exportsMap = std::make_shared<MapRecursiveWrapper>();
+                if (!m_SymbolTableStack.empty())
+                {
+                    for (const auto& [varName, value] : m_SymbolTableStack.back())
+                    {
+                        exportsMap->elements[varName] = value;
+                    }
+                }
+                PopScope();
+
+                m_ModuleCache[name] = exportsMap;
+            }
+            catch (const AlengError& e)
+            {
+                throw;
+            }
+            catch (const std::exception& e)
+            {
+                throw std::runtime_error(
+                    "Fatal Error: Could not initialize standard library '" + name + "': " + e.what());
+            }
+        }
     }
 
     void Visitor::PushScope()
@@ -138,19 +184,9 @@ namespace Aleng
         return m_SymbolTableStack.back().contains(name);
     }
 
-    void Visitor::RegisterBuiltinFunctions()
+    /*void Visitor::RegisterBuiltinFunctions()
     {
-        m_Functions.emplace("Print", Callable([&](Visitor &visitor, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
-                                              {
-            for (auto &arg : args)
-                PrintEvaluatedValue(arg);
-            return 0.0; }));
 
-        m_Functions.emplace("PrintRaw", Callable([&](Visitor &visitor, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
-                                                 {
-            for (auto &arg : args)
-                PrintEvaluatedValue(arg, true);
-            return 0.0; }));
 
         m_Functions.emplace("IsString", Callable([&](Visitor &visitor, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
                                                  {
@@ -303,7 +339,7 @@ namespace Aleng
                 exit(status);
             } else throw AlengError("'code' must be a number.", ctx); }));
 
-    }
+    }*/
 
     EvaluatedValue Visitor::ExecuteAlengFile(const std::string &filepath, Visitor &visitor)
     {
@@ -323,6 +359,11 @@ namespace Aleng
         auto programAst = parser.ParseProgram();
 
         return programAst->Accept(visitor);
+    }
+
+    void Visitor::RegisterBuiltinCallback(const std::string &name, Aleng::BuiltinFunctionCallback callback)
+    {
+        m_NativeCallbacks[name] = std::move(callback);
     }
 
     EvaluatedValue Visitor::Visit(const ProgramNode &node)
@@ -562,6 +603,40 @@ namespace Aleng
         return mapWrapper;
     }
 
+    EvaluatedValue Visitor::ExecuteModule(const std::string &sourceCode, const ImportModuleNode& node, const std::string& modulePath)
+    {
+        Parser parser(sourceCode, modulePath);
+        const auto ast = parser.ParseProgram();
+
+        PushScope();
+        try
+        {
+            ast->Accept(*this);
+        } catch (const AlengError &_)
+        {
+            PopScope();
+            throw;
+        }
+        catch (const std::exception& e)
+        {
+            PopScope();
+            throw AlengError("Internal error: " + std::string(e.what()), node);
+        }
+
+        auto exportsMap = std::make_shared<MapRecursiveWrapper>();
+        if (!m_SymbolTableStack.empty())
+        {
+            for (const auto& [Name, Value] : m_SymbolTableStack.back())
+            {
+                exportsMap->elements[Name] = Value;
+            }
+        }
+        PopScope();
+
+        const EvaluatedValue moduleExports = exportsMap;
+        return moduleExports;
+    }
+
     EvaluatedValue Visitor::Visit(const BooleanNode &node)
     {
         return static_cast<EvaluatedValue>(node.Value);
@@ -576,7 +651,7 @@ namespace Aleng
     }
     EvaluatedValue Visitor::Visit(const StringNode &node)
     {
-        return static_cast<EvaluatedValue>(node.Value);
+        return node.Value;
     }
     EvaluatedValue Visitor::Visit(const IdentifierNode &node)
     {
@@ -586,16 +661,9 @@ namespace Aleng
                 return it.at(node.Value);
         }
 
-        if (const auto funcIt = m_Functions.find(node.Value); funcIt != m_Functions.end())
+        if (m_NativeCallbacks.contains(node.Value))
         {
-            if (const Callable &callable = funcIt->second; callable.type == Callable::Type::USER_DEFINED)
-            {
-                return std::make_shared<FunctionObject>(node.Value, callable.userFuncNode, callable.definitionEnvironment);
-            }
-            else
-            {
-                return std::make_shared<FunctionObject>(node.Value);
-            }
+            return std::make_shared<FunctionObject>(node.Value);
         }
 
         throw AlengError("Identifier \"" + node.Value + "\" not defined as variable or function.", node);
@@ -745,9 +813,9 @@ namespace Aleng
 
     EvaluatedValue Visitor::Visit(const FunctionDefinitionNode &node)
     {
-        if (m_Functions.contains(node.FunctionName))
+        if (IsVariableDefinedInCurrentScope(node.FunctionName))
         {
-            std::cout << "Warning: Redefining function '" << node.FunctionName << "'." << std::endl;
+            throw AlengError("Function '" + node.FunctionName + "' already defined.", node);
         }
 
         auto funcNodeCopy = std::make_shared<FunctionDefinitionNode>(node);
@@ -755,16 +823,16 @@ namespace Aleng
         SymbolTableStack currentEnv = m_SymbolTableStack;
 
         auto funcObject = std::make_unique<FunctionObject>(node.FunctionName, funcNodeCopy, currentEnv);
+        auto functionStorage = FunctionStorage(std::move(funcObject));
 
-        m_Functions.erase(node.FunctionName);
-        m_Functions.emplace(node.FunctionName, Callable(std::move(funcNodeCopy), std::move(currentEnv)));
-        return FunctionStorage(std::move(funcObject));
+        m_SymbolTableStack.back()[node.FunctionName] = functionStorage;
+
+        return functionStorage;
     }
 
     EvaluatedValue Visitor::Visit(const FunctionCallNode &node)
     {
         EvaluatedValue callableVar = node.CallableExpression->Accept(*this);
-
         auto pFuncObj = std::get_if<FunctionStorage>(&callableVar);
 
         if (!pFuncObj)
@@ -869,79 +937,22 @@ namespace Aleng
 
             return result;
         }
-        else if (funcObj.Type == FunctionObject::Type::BUILTIN)
+        if (funcObj.Type == FunctionObject::Type::BUILTIN)
         {
-            auto builtinIt = m_Functions.find(funcObj.Name);
-            if (builtinIt == m_Functions.end() || builtinIt->second.type != Callable::Type::BUILTIN)
+            auto it = m_NativeCallbacks.find(funcObj.Name);
+            if (it == m_NativeCallbacks.end())
             {
-                throw AlengError("Internal error: Built-in function '" + funcObj.Name + "' not found or misconfigured.", node);
+                throw AlengError("Internal error: Built-in function '" + funcObj.Name + "' not found.", node);
             }
-            return builtinIt->second.builtinFunc(*this, resolvedArgs, node);
+            return it->second(*this, resolvedArgs, node);
         }
-        else
-        {
-            throw AlengError("Internal error: Unknown FunctionObject type.", node);
-        }
+
+        throw AlengError("Internal error: Unknown FunctionObject type.", node);
     }
 
     EvaluatedValue Visitor::Visit(const ImportModuleNode &node)
     {
-        const std::string& name = node.ModuleName;
-
-        if (m_ModuleCache.contains(name))
-        {
-            return m_ModuleCache[name];
-        }
-
-        fs::path modulePath = m_WorkspaceRoot / (name + ".aleng");
-        if (!fs::exists(modulePath))
-        {
-            throw AlengError("Module '" + name + "' not found.", node);
-        }
-
-        std::ifstream file(modulePath);
-        if (!file.is_open())
-        {
-            throw AlengError("Failed to open module file '" + modulePath.string() + "'.", node);
-        }
-
-        std::stringstream buffer;
-        buffer << file.rdbuf();
-        std::string sourceCode = buffer.str();
-        file.close();
-
-        Parser parser(sourceCode, modulePath.string());
-        auto ast = parser.ParseProgram();
-
-        PushScope();
-        try
-        {
-            ast->Accept(*this);
-        } catch (const AlengError &_)
-        {
-            PopScope();
-            throw;
-        }
-        catch (const std::exception& e)
-        {
-            PopScope();
-            throw AlengError("Internal error: " + std::string(e.what()), node);
-        }
-
-        auto exportsMap = std::make_shared<MapRecursiveWrapper>();
-        if (!m_SymbolTableStack.empty())
-        {
-            for (const auto& [Name, Value] : m_SymbolTableStack.back())
-            {
-                exportsMap->elements[Name] = Value;
-            }
-        }
-        PopScope();
-
-        EvaluatedValue moduleExports = exportsMap;
-        m_ModuleCache[name] = moduleExports;
-
-        return moduleExports;
+        return m_ModuleManager.LoadModule(node.ModuleName, node, *this);
     }
 
     EvaluatedValue Visitor::Visit(const BinaryExpressionNode &node)

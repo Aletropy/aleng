@@ -9,8 +9,14 @@
 #include <fstream>
 #include <sstream>
 
+#include "Core/ModuleManager.h"
+
 namespace fs = std::filesystem;
 using namespace Aleng;
+
+namespace Aleng {
+    void RegisterAllNativeLibraries(ModuleManager& manager);
+}
 
 void RunREPL(Visitor &visitor)
 {
@@ -54,7 +60,9 @@ int main(int argc, char *argv[])
     std::string mainFilename = "main.aleng";
     fs::path resolvedMainFilePath;
 
-    auto replVisitor = Visitor();
+    auto replModuleManager = ModuleManager(fs::current_path());
+    RegisterAllNativeLibraries(replModuleManager);
+    auto replVisitor = Visitor(replModuleManager);
 
     if (argc >= 2)
     {
@@ -123,11 +131,13 @@ int main(int argc, char *argv[])
         }
     }
 
-    Visitor visitor(workspacePath);
+    auto moduleManager = ModuleManager(workspacePath);
+    RegisterAllNativeLibraries(moduleManager);
+
+    Visitor visitor(moduleManager);
 
     try
     {
-
         if (fs::exists(resolvedMainFilePath))
         {
             auto result = Visitor::ExecuteAlengFile(resolvedMainFilePath.string(), visitor);

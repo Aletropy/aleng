@@ -50,11 +50,11 @@ void RunREPL(Visitor &visitor)
 
 int main(int argc, char *argv[])
 {
-    auto visitor = Visitor();
-
     fs::path workspacePath;
     std::string mainFilename = "main.aleng";
     fs::path resolvedMainFilePath;
+
+    auto replVisitor = Visitor();
 
     if (argc >= 2)
     {
@@ -62,13 +62,11 @@ int main(int argc, char *argv[])
 
         if (argument.starts_with("--") && argument == "--repl")
         {
-            RunREPL(visitor);
+            RunREPL(replVisitor);
             return 0;
         }
 
-        fs::path targetPath(argument);
-
-        if (fs::is_directory(targetPath))
+        if (fs::path targetPath(argument); fs::is_directory(targetPath))
         {
             workspacePath = targetPath;
             if (!fs::exists(workspacePath / mainFilename))
@@ -117,27 +115,18 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (workspacePath.empty() && !resolvedMainFilePath.empty())
-    {
-        workspacePath = resolvedMainFilePath.parent_path();
+    if (workspacePath.empty()) {
+        if (!resolvedMainFilePath.empty()) {
+            workspacePath = resolvedMainFilePath.parent_path();
+        } else {
+            workspacePath = fs::current_path();
+        }
     }
 
-    std::map<std::string, fs::path> alengFiles;
+    Visitor visitor(workspacePath);
 
     try
     {
-        for (const auto &entry : fs::recursive_directory_iterator(workspacePath))
-        {
-            if (entry.is_regular_file() && entry.path().extension() == ".aleng")
-            {
-                if (entry.path().filename().string() != mainFilename)
-                {
-                    alengFiles[entry.path().stem()] = (entry.path());
-                }
-            }
-        }
-
-        visitor.LoadModuleFiles(alengFiles);
 
         if (fs::exists(resolvedMainFilePath))
         {

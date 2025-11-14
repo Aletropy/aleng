@@ -43,15 +43,15 @@ namespace Aleng
 {
     bool Visitor::IsTruthy(const EvaluatedValue &val)
     {
-        if (auto pval = std::get_if<double>(&val))
+        if (const auto pval = std::get_if<double>(&val))
             return *pval != 0.0;
-        else if (auto sval = std::get_if<std::string>(&val))
+        else if (const auto sval = std::get_if<std::string>(&val))
             return !sval->empty();
-        else if (auto bval = std::get_if<bool>(&val))
+        else if (const auto bval = std::get_if<bool>(&val))
             return *bval;
-        else if (auto lval = std::get_if<ListStorage>(&val))
+        else if (const auto lval = std::get_if<ListStorage>(&val))
             return !(*lval)->elements.empty();
-        else if (auto mval = std::get_if<MapStorage>(&val))
+        else if (const auto mval = std::get_if<MapStorage>(&val))
             return !(*mval)->elements.empty();
 
         return false;
@@ -61,20 +61,21 @@ namespace Aleng
     {
         if (std::holds_alternative<double>(val))
             return AlengType::NUMBER;
-        else if (std::holds_alternative<std::string>(val))
+        if (std::holds_alternative<std::string>(val))
             return AlengType::STRING;
-        else if (std::holds_alternative<bool>(val))
+        if (std::holds_alternative<bool>(val))
             return AlengType::BOOLEAN;
-        else if (std::holds_alternative<ListStorage>(val))
+        if (std::holds_alternative<ListStorage>(val))
             return AlengType::LIST;
-        else if (std::holds_alternative<MapStorage>(val))
+        if (std::holds_alternative<MapStorage>(val))
             return AlengType::MAP;
-        else if (std::holds_alternative<FunctionStorage>(val))
+        if (std::holds_alternative<FunctionStorage>(val))
             return AlengType::FUNCTION;
         throw std::runtime_error("Unsupported EvaluatedValue type encountered in GetAlengType.");
     }
 
-    Visitor::Visitor()
+    Visitor::Visitor(std::string workspaceRoot)
+        : m_WorkspaceRoot(std::move(workspaceRoot))
     {
         PushScope();
         RegisterBuiltinFunctions();
@@ -178,9 +179,9 @@ namespace Aleng
                     throw AlengError("Len expects exacts one argument.", ctx);
                 auto objectVal = args[0];
 
-                if (auto pString = std::get_if<std::string>(&objectVal))
-                    return static_cast<double>((*pString).length());
-                else if (auto pListWrapper = std::get_if<ListStorage>(&objectVal))
+                if (const auto pString = std::get_if<std::string>(&objectVal))
+                    return static_cast<double>(pString->length());
+                else if (const auto pListWrapper = std::get_if<ListStorage>(&objectVal))
                     return static_cast<double>((*pListWrapper)->elements.size());
 
                 throw AlengError(
@@ -207,10 +208,9 @@ namespace Aleng
                     throw AlengError("Len expects exacts one list as argument.", ctx);
                 auto objectVal = args[0];
 
-                if (auto pListWrapper = std::get_if<ListStorage>(&objectVal))
+                if (const auto pListWrapper = std::get_if<ListStorage>(&objectVal))
                 {
-                    auto& elements = (*pListWrapper)->elements;
-                    if(elements.size() > 0)
+                    if(const auto& elements = (*pListWrapper)->elements; !elements.empty())
                     {
                         auto element = elements[elements.size()-1];
                         (*pListWrapper)->elements.pop_back();
@@ -294,20 +294,15 @@ namespace Aleng
 
             EvaluatedValue code = 0.0;
 
-            if(args.size() > 0)
+            if(!args.empty())
                 code = args[0];
 
-            if(auto pCodeDouble = std::get_if<double>(&code))
+            if(const auto pCodeDouble = std::get_if<double>(&code))
             {
-                auto code = static_cast<int>(*pCodeDouble);
-                exit(code);
+                const auto status = static_cast<int>(*pCodeDouble);
+                exit(status);
             } else throw AlengError("'code' must be a number.", ctx); }));
 
-    }
-
-    void Visitor::LoadModuleFiles(std::map<std::string, fs::path> moduleFiles)
-    {
-        m_AvailableModules = moduleFiles;
     }
 
     EvaluatedValue Visitor::ExecuteAlengFile(const std::string &filepath, Visitor &visitor)
@@ -363,13 +358,13 @@ namespace Aleng
             auto startVal = info.StartExpression->Accept(*this);
             auto endVal = info.EndExpression->Accept(*this);
             EvaluatedValue stepValRaw;
-            double step = 1.0;
+            int step = 1;
 
             if (info.StepExpression)
             {
                 stepValRaw = info.StepExpression->Accept(*this);
                 if (auto pStep = std::get_if<double>(&stepValRaw))
-                    step = *pStep;
+                    step = static_cast<int>(*pStep);
                 else
                 {
                     PopScope();
@@ -381,7 +376,7 @@ namespace Aleng
             {
                 if (auto pEnd = std::get_if<double>(&endVal))
                 {
-                    double current = *pStart;
+                    int current = static_cast<int>(*pStart);
                     double limit = *pEnd;
 
                     if (step == 0)
@@ -409,15 +404,15 @@ namespace Aleng
 
                     for (; loopCondition(current); current += step)
                     {
-                        DefineVariable(info.IteratorVariableName, current);
+                        DefineVariable(info.IteratorVariableName, static_cast<double>(current));
                         try
                         {
                             lastResult = node.Body->Accept(*this);
                         }
-                        catch (const ContinueSignal &signal)
+                        catch (const ContinueSignal &_)
                         {
                         }
-                        catch (const BreakSignal &signal)
+                        catch (const BreakSignal &_)
                         {
                             break;
                         }
@@ -450,17 +445,17 @@ namespace Aleng
             }
             else if (auto pMap = std::get_if<MapStorage>(&collection))
             {
-                for (const auto &pair : (*pMap)->elements)
+                for (const auto &key: (*pMap)->elements | std::views::keys)
                 {
-                    DefineVariable(info.IteratorVariableName, pair.first);
+                    DefineVariable(info.IteratorVariableName, key);
                     try
                     {
                         lastResult = node.Body->Accept(*this);
                     }
-                    catch (const ContinueSignal &signal)
+                    catch (const ContinueSignal &_)
                     {
                     }
-                    catch (const BreakSignal &signal)
+                    catch (const BreakSignal &_)
                     {
                         break;
                     }
@@ -499,11 +494,11 @@ namespace Aleng
             {
                 lastResult = node.Body->Accept(*this);
             }
-            catch (const ContinueSignal &signal)
+            catch (const ContinueSignal &_)
             {
                 continue;
             }
-            catch (const BreakSignal &signal)
+            catch (const BreakSignal &_)
             {
                 break;
             }
@@ -512,10 +507,10 @@ namespace Aleng
                 PopScope();
                 return signal.Value;
             }
-            catch (const AlengError &error)
+            catch (const AlengError &_)
             {
                 PopScope();
-                throw error; // Propagate error
+                throw;
             }
         }
 
@@ -573,11 +568,11 @@ namespace Aleng
     }
     EvaluatedValue Visitor::Visit(const IntegerNode &node)
     {
-        return EvaluatedValue(static_cast<double>(node.Value));
+        return { static_cast<double>(node.Value) };
     }
     EvaluatedValue Visitor::Visit(const FloatNode &node)
     {
-        return static_cast<EvaluatedValue>(node.Value);
+        return node.Value;
     }
     EvaluatedValue Visitor::Visit(const StringNode &node)
     {
@@ -585,17 +580,15 @@ namespace Aleng
     }
     EvaluatedValue Visitor::Visit(const IdentifierNode &node)
     {
-        for (auto it = m_SymbolTableStack.rbegin(); it != m_SymbolTableStack.rend(); ++it)
+        for (auto & it : std::ranges::reverse_view(m_SymbolTableStack))
         {
-            if (it->count(node.Value))
-                return it->at(node.Value);
+            if (it.contains(node.Value))
+                return it.at(node.Value);
         }
 
-        auto funcIt = m_Functions.find(node.Value);
-        if (funcIt != m_Functions.end())
+        if (const auto funcIt = m_Functions.find(node.Value); funcIt != m_Functions.end())
         {
-            const Callable &callable = funcIt->second;
-            if (callable.type == Callable::Type::USER_DEFINED)
+            if (const Callable &callable = funcIt->second; callable.type == Callable::Type::USER_DEFINED)
             {
                 return std::make_shared<FunctionObject>(node.Value, callable.userFuncNode, callable.definitionEnvironment);
             }
@@ -718,7 +711,7 @@ namespace Aleng
                              {
                                  areEqual = l == r;
                              },
-                             [&](std::string l, std::string r)
+                             [&](const std::string &l, const std::string &r)
                              {
                                  areEqual = l == r;
                              },
@@ -726,15 +719,15 @@ namespace Aleng
                              {
                                  areEqual = l == r;
                              },
-                             [&](MapStorage l, MapStorage r)
+                             [&](const MapStorage &l, const MapStorage &r)
                              {
                                  areEqual = (l->elements == r->elements);
                              },
-                             [&](ListStorage l, ListStorage r)
+                             [&](const ListStorage &l, const ListStorage &r)
                              {
                                  areEqual = (l->elements == r->elements);
                              },
-                             [&](FunctionStorage l, FunctionStorage r)
+                             [&](const FunctionStorage &l, const FunctionStorage &r)
                              {
                                  areEqual = l->Name == r->Name;
                              },
@@ -813,7 +806,6 @@ namespace Aleng
                         variadicList->elements.push_back(resolvedArgs[i]);
                     }
                     DefineVariable(param.Name, variadicList, false);
-                    argIdx = resolvedArgs.size();
                     variadicProcessed = true;
                     break;
                 }
@@ -890,27 +882,66 @@ namespace Aleng
         {
             throw AlengError("Internal error: Unknown FunctionObject type.", node);
         }
-
-        throw AlengError("Internal error: Unknown callable type for function " + funcObj.Name, node);
     }
 
     EvaluatedValue Visitor::Visit(const ImportModuleNode &node)
     {
-        for (auto &entry : m_ImportedModules)
+        const std::string& name = node.ModuleName;
+
+        if (m_ModuleCache.contains(name))
         {
-            if (entry == node.ModuleName)
-                return 0.0;
+            return m_ModuleCache[name];
         }
 
-        auto path = m_AvailableModules[node.ModuleName];
+        fs::path modulePath = m_WorkspaceRoot / (name + ".aleng");
+        if (!fs::exists(modulePath))
+        {
+            throw AlengError("Module '" + name + "' not found.", node);
+        }
 
-        if (path.empty())
-            throw AlengError("Module '" + node.ModuleName + "' not found.", node);
+        std::ifstream file(modulePath);
+        if (!file.is_open())
+        {
+            throw AlengError("Failed to open module file '" + modulePath.string() + "'.", node);
+        }
 
-        m_ImportedModules.push_back(node.ModuleName);
-        ExecuteAlengFile(path.string(), *this);
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        std::string sourceCode = buffer.str();
+        file.close();
 
-        return 0.0;
+        Parser parser(sourceCode, modulePath.string());
+        auto ast = parser.ParseProgram();
+
+        PushScope();
+        try
+        {
+            ast->Accept(*this);
+        } catch (const AlengError &_)
+        {
+            PopScope();
+            throw;
+        }
+        catch (const std::exception& e)
+        {
+            PopScope();
+            throw AlengError("Internal error: " + std::string(e.what()), node);
+        }
+
+        auto exportsMap = std::make_shared<MapRecursiveWrapper>();
+        if (!m_SymbolTableStack.empty())
+        {
+            for (const auto& [Name, Value] : m_SymbolTableStack.back())
+            {
+                exportsMap->elements[Name] = Value;
+            }
+        }
+        PopScope();
+
+        EvaluatedValue moduleExports = exportsMap;
+        m_ModuleCache[name] = moduleExports;
+
+        return moduleExports;
     }
 
     EvaluatedValue Visitor::Visit(const BinaryExpressionNode &node)
@@ -967,10 +998,9 @@ namespace Aleng
                         break;
                     default:
                         throw AlengError("Unknown operator for binary expression: " + TokenTypeToString(node.Operator), node);
-                        break;
                     }
                 },
-                [&](std::string l, std::string r)
+                [&](const std::string &l, const std::string &r)
                 {
                     switch (node.Operator)
                     {
@@ -993,7 +1023,7 @@ namespace Aleng
                         throw AlengError("Only concatenation operator for strings supported.", node);
                     }
                 },
-                [&](std::string l, double r)
+                [&](const std::string &l, double r)
                 {
                     auto ss = std::stringstream();
 
@@ -1013,15 +1043,15 @@ namespace Aleng
                         throw AlengError("Unknown operator for binary expression: " + TokenTypeToString(node.Operator), node);
                     }
                 },
-                [&](ListStorage l, ListStorage r)
+                [&](const ListStorage &l, const ListStorage &r)
                 {
                     auto finalList = std::make_shared<ListRecursiveWrapper>();
 
-                    for (const auto elem : l->elements)
+                    for (const auto& elem : l->elements)
                     {
                         finalList->elements.push_back(elem);
                     }
-                    for (const auto elem : r->elements)
+                    for (const auto& elem : r->elements)
                     {
                         finalList->elements.push_back(elem);
                     }

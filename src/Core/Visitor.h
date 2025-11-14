@@ -1,7 +1,6 @@
 #pragma once
 
 #include "AST.h"
-#include <map>
 #include <unordered_map>
 #include <vector>
 #include <functional>
@@ -24,8 +23,7 @@ namespace Aleng
     class Visitor
     {
     public:
-        Visitor();
-        void LoadModuleFiles(std::map<std::string, fs::path> moduleFiles);
+        explicit Visitor(std::string workspaceRoot = "unknown");
 
         static EvaluatedValue ExecuteAlengFile(const std::string &filepath, Visitor &visitor);
 
@@ -36,15 +34,21 @@ namespace Aleng
         EvaluatedValue Visit(const WhileStatementNode &node);
         EvaluatedValue Visit(const ListNode &node);
         EvaluatedValue Visit(const MapNode &node);
-        EvaluatedValue Visit(const BooleanNode &node);
-        EvaluatedValue Visit(const IntegerNode &node);
-        EvaluatedValue Visit(const FloatNode &node);
-        EvaluatedValue Visit(const StringNode &node);
+
+        static EvaluatedValue Visit(const BooleanNode &node);
+
+        static EvaluatedValue Visit(const IntegerNode &node);
+
+        static EvaluatedValue Visit(const FloatNode &node);
+
+        static EvaluatedValue Visit(const StringNode &node);
         EvaluatedValue Visit(const IdentifierNode &node);
         EvaluatedValue Visit(const ListAccessNode &node);
         EvaluatedValue Visit(const ReturnNode &node);
-        EvaluatedValue Visit(const BreakNode &node);
-        EvaluatedValue Visit(const ContinueNode &node);
+
+        static EvaluatedValue Visit(const BreakNode &node);
+
+        static EvaluatedValue Visit(const ContinueNode &node);
         EvaluatedValue Visit(const AssignExpressionNode &node);
         EvaluatedValue Visit(const FunctionDefinitionNode &node);
         EvaluatedValue Visit(const FunctionCallNode &node);
@@ -80,15 +84,15 @@ namespace Aleng
             SymbolTableStack definitionEnvironment;
 
             Callable(std::shared_ptr<FunctionDefinitionNode> node, SymbolTableStack stack) : type(Type::USER_DEFINED), userFuncNode(std::move(node)), builtinFunc(nullptr), definitionEnvironment(std::move(stack)) {}
-            Callable(BuiltinFunctionCallback func) : type(Type::BUILTIN), builtinFunc(std::move(func)) {}
+            explicit Callable(BuiltinFunctionCallback func) : type(Type::BUILTIN), builtinFunc(std::move(func)) {}
         };
 
     private:
         SymbolTableStack m_SymbolTableStack;
         std::unordered_map<std::string, Callable> m_Functions;
 
-        std::vector<std::string> m_ImportedModules;
-        std::map<std::string, fs::path> m_AvailableModules;
+        fs::path m_WorkspaceRoot;
+        std::unordered_map<std::string, EvaluatedValue> m_ModuleCache;
 
         void RegisterBuiltinFunctions();
     };

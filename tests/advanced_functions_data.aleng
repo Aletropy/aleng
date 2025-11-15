@@ -1,0 +1,96 @@
+##
+# This file tests advanced function features like recursion and variadic arguments,
+# as well as operator precedence and complex, nested data structures.
+##
+
+Test = Import "std/test"
+AdvancedSuite = Test.CreateSuite("Advanced Functions and Data Tests")
+
+# --- Test 1: Recursive Function Calls ---
+# Verifies that the function call stack works correctly by implementing a classic factorial.
+Fn test_recursive_function_calls()
+    Fn factorial(n)
+        If n <= 1
+            Return 1
+        End
+        Return n * factorial(n - 1)
+    End
+    # 5! = 120
+    Test.Assert.Equals(factorial(5), 120, "Recursive factorial(5) should be 120")
+End
+AdvancedSuite.Add("should support recursive function calls", test_recursive_function_calls)
+
+
+# --- Test 2: Variadic Functions ---
+# Ensures that functions can accept a variable number of arguments.
+Fn test_variadic_functions()
+    Fn sum_all($numbers)
+        total = 0
+        For num in numbers
+            total = total + num
+        End
+        Return total
+    End
+    Test.Assert.Equals(sum_all(1, 2, 3, 4, 5), 15, "Should sum all provided arguments")
+    Test.Assert.Equals(sum_all(), 0, "Should return 0 when no arguments are given")
+End
+AdvancedSuite.Add("should support variadic function arguments", test_variadic_functions)
+
+
+# --- Test 3: Operator Precedence ---
+# Verifies that mathematical and logical operators follow the correct order of operations.
+Fn test_operator_precedence()
+    # Multiplication should happen before addition
+    result1 = 2 + 3 * 4
+    Test.Assert.Equals(result1, 14, "Multiplication should have higher precedence than addition")
+
+    # Parentheses should override precedence
+    result2 = (2 + 3) * 4
+    Test.Assert.Equals(result2, 20, "Parentheses should override default operator precedence")
+
+    # 'not' should have higher precedence than 'and'
+    result3 = not False and False
+    Test.Assert.IsFalse(result3, "'not' should be evaluated before 'and'")
+End
+AdvancedSuite.Add("should respect operator precedence", test_operator_precedence)
+
+
+# --- Test 4: Nested Data Structures ---
+# Checks if nested lists and maps can be accessed and modified correctly.
+Fn test_nested_data_structures()
+    data = {
+        "user": {
+            "name": "Aleng",
+            "permissions": ["read", "write"]
+        }
+    }
+    Test.Assert.Equals(data.user.name, "Aleng", "Should access nested map properties")
+    Test.Assert.Equals(data.user.permissions[1], "write", "Should access list element inside a nested map")
+
+    # Test assignment
+    data.user.name = "Aleng v2"
+    Test.Assert.Equals(data.user.name, "Aleng v2", "Should allow assignment to nested map properties")
+End
+AdvancedSuite.Add("should handle nested data structure access and assignment", test_nested_data_structures)
+
+
+# --- Test 5: Maps as Objects with Methods ---
+# A practical test to see if functions can be stored in maps and called, simulating methods.
+Fn test_maps_as_objects_with_methods()
+    Fn get_greeting(person_obj)
+        Return "Hello, " + person_obj.name
+    End
+
+    person = {
+        "name": "Alex",
+        "greet": get_greeting
+    }
+
+    message = person.greet(person)
+    Test.Assert.Equals(message, "Hello, Alex", "Should be able to call a function stored in a map")
+End
+AdvancedSuite.Add("should allow maps to be used as objects with methods", test_maps_as_objects_with_methods)
+
+
+# --- Run the Test Suite ---
+AdvancedSuite.Run()

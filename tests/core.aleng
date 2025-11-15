@@ -1,0 +1,138 @@
+##
+# tests/test_language_core.aleng
+#
+# This file contains essential tests for the core features of the Aleng language,
+# using the native testing library.
+##
+
+Test = Import "std/test"
+CoreSuite = Test.CreateSuite("Aleng Language Core Features")
+
+# --- Test 1: Variables, Types, and Basic Operators ---
+# Verifies that the foundation of the language (assignment, math,
+# concatenation, and boolean logic) works as expected.
+
+Fn test_variables_and_operators()
+    # Assignment and types
+    num = 10
+    str = "Aleng"
+    bool_true = True
+
+    # Arithmetic operators
+    Test.Assert.Equals(num * 2, 20, "Multiplication must work")
+    Test.Assert.Equals(num + 5 - 3, 12, "Addition and subtraction must work")
+
+    # String operators
+    Test.Assert.Equals(str + " Lang", "Aleng Lang", "String concatenation must work")
+
+    # Logical and comparison operators
+    Test.Assert.IsTrue(num == 10, "Equality operator (==) must work")
+    Test.Assert.IsTrue(num > 5 and bool_true, "'and' operator must work")
+    Test.Assert.IsFalse(num < 0 or False, "'or' operator must work")
+End
+CoreSuite.Add("should handle basic variables, types, and operators", test_variables_and_operators)
+
+
+# --- Test 2: Control Flow Structures ---
+# Ensures that If/Else statements and loops (For/While) execute
+# conditional and repetitive logic as expected.
+
+Fn test_control_flow_statements()
+    # If/Else test
+    condition = True
+    result = ""
+    If condition
+        result = "then"
+    Else
+        result = "else"
+    End
+    Test.Assert.Equals(result, "then", "'If' block must execute when condition is true")
+
+    # Numeric For loop test
+    total = 0
+    For i = 1 .. 3  # Loop from 1 to 3 (inclusive)
+        total = total + i
+    End
+    Test.Assert.Equals(total, 6, "Numeric 'For' loop should correctly sum 1+2+3")
+End
+CoreSuite.Add("should execute control flow structures correctly", test_control_flow_statements)
+
+
+# --- Test 3: Data Structures (Lists and Maps) ---
+# Verifies the creation, access, and modification of the language's
+# fundamental data structures.
+
+Fn test_data_structures()
+    # List test
+    my_list = [10, "hello", True]
+    Test.Assert.Equals(my_list[1], "hello", "List index access must work")
+    my_list[0] = 20 # Modification
+    Test.Assert.Equals(my_list[0], 20, "List index assignment must work")
+
+    # Map test
+    my_map = { "name": "Aleng", "version": 0.1 }
+    Test.Assert.Equals(my_map.name, "Aleng", "Map member access with '.' must work")
+    my_map.version = 1.0 # Modification
+    Test.Assert.Equals(my_map.version, 1.0, "Map member assignment with '.' must work")
+End
+CoreSuite.Add("should support creation, access, and modification of lists and maps", test_data_structures)
+
+
+# --- Test 4: Functions and Scope (Closures) ---
+# A critical test that verifies that functions can be defined, called,
+# and that lexical scoping (closures) works, i.e., an inner function
+# can access variables from its outer function.
+
+Fn test_functions_and_closures()
+    Fn make_counter(start_value)
+        count = start_value
+        Fn counter()
+            count = count + 1
+            Return count
+        End
+        Return counter # Return the inner function
+    End
+
+    counterA = make_counter(10)
+    counterB = make_counter(0)
+
+    counterA() # 11
+    counterA() # 12
+
+    Test.Assert.Equals(counterA(), 13, "Closure must maintain its own scope state (A)")
+    Test.Assert.Equals(counterB(), 1, "Closure must maintain its own scope state (B)")
+End
+CoreSuite.Add("should handle function definition, returns, and closure scope", test_functions_and_closures)
+
+
+# --- Test 5: Error Handling and Edge Cases ---
+# Verifies that the language fails predictably and correctly when
+# invalid operations are attempted.
+
+Fn test_error_handling_and_edge_cases()
+    l = [1]
+    m = {}
+
+    # Error test: Division by zero
+    Test.Assert.Throws(
+        Fn() x = 1 / 0 End,
+        "Division by zero should throw an error"
+    )
+
+    # Error test: List index out of bounds
+    Test.Assert.Throws(
+        Fn() y = l[99] End,
+        "Accessing a list index out of bounds should throw an error"
+    )
+
+    # Error test: Accessing non-existent map key
+    Test.Assert.Throws(
+        Fn() z = m.non_existent_key End,
+        "Accessing a non-existent map key should throw an error"
+    )
+End
+CoreSuite.Add("should throw errors for invalid operations and edge cases", test_error_handling_and_edge_cases)
+
+
+# --- Run the Test Suite ---
+CoreSuite.Run()

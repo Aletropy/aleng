@@ -1,0 +1,95 @@
+##
+# This file tests advanced control flow features, including loop controls
+# (break/continue) and iteration over different collection types.
+##
+
+Test = Import "std/test"
+FlowSuite = Test.CreateSuite("Advanced Control Flow Tests")
+
+# --- Test 1: For Loop with Custom Step ---
+# Verifies that a 'For' loop can iterate with a custom step, including negative values.
+Fn test_for_loop_with_step()
+    result = []
+    # Count down from 5 to 1, skipping every other number
+    For i = 5 .. 1 step -2
+        Append(result, i)
+    End
+    Test.Assert.Equals(result[0], 5, "Loop should start at 5")
+    Test.Assert.Equals(result[1], 3, "Loop should step by -2 to 3")
+    Test.Assert.Equals(result[2], 1, "Loop should end at 1")
+    Test.Assert.Equals(result.length, 3, "Loop should have executed 3 times")
+End
+FlowSuite.Add("should handle for loops with custom steps", test_for_loop_with_step)
+
+
+# --- Test 2: While Loop with Break Statement ---
+# Ensures the 'break' keyword correctly terminates a loop prematurely.
+Fn test_while_loop_with_break()
+    counter = 0
+    While True # Potentially infinite loop
+        counter = counter + 1
+        If counter == 5
+            Break
+        End
+    End
+    Test.Assert.Equals(counter, 5, "'break' should terminate the loop when counter reaches 5")
+End
+FlowSuite.Add("should correctly handle 'break' statements in a while loop", test_while_loop_with_break)
+
+
+# --- Test 3: For Loop with Continue Statement ---
+# Ensures the 'continue' keyword skips the current iteration and proceeds to the next.
+Fn test_for_loop_with_continue()
+    sum_of_odd_numbers = 0
+    For i = 1 .. 5
+        If i % 2 == 0 # If the number is even...
+            Continue  # ...skip this iteration.
+        End
+        sum_of_odd_numbers = sum_of_odd_numbers + i
+    End
+    # The sum should be 1 + 3 + 5 = 9
+    Test.Assert.Equals(sum_of_odd_numbers, 9, "'continue' should skip even numbers")
+End
+FlowSuite.Add("should correctly handle 'continue' statements in a for loop", test_for_loop_with_continue)
+
+
+# --- Test 4: Iteration over a List ---
+# Verifies that a 'For...in' loop can correctly iterate over the elements of a list.
+Fn test_for_in_list_iteration()
+    items = ["a", "b", "c"]
+    concatenated = ""
+    For item in items
+        concatenated = concatenated + item
+    End
+    Test.Assert.Equals(concatenated, "abc", "For...in should iterate over all list elements in order")
+End
+FlowSuite.Add("should correctly iterate over list elements", test_for_in_list_iteration)
+
+
+# --- Test 5: Iteration over a Map's Keys ---
+# Verifies that a 'For...in' loop can iterate over the keys of a map.
+Fn test_for_in_map_iteration()
+    data = { "x": 100, "y": 200, "z": 300 }
+    keys_found = []
+    For key in data
+        Append(keys_found, key)
+    End
+
+    # Note: Map key order is not guaranteed, so we check for presence, not order.
+    has_x = False
+    has_y = False
+    has_z = False
+    For found_key in keys_found
+        If found_key == "x" has_x = True End
+        If found_key == "y" has_y = True End
+        If found_key == "z" has_z = True End
+    End
+
+    Test.Assert.Equals(keys_found.length, 3, "Should find all three keys in the map")
+    Test.Assert.IsTrue(has_x and has_y and has_z, "All expected keys should be present after iteration")
+End
+FlowSuite.Add("should correctly iterate over map keys", test_for_in_map_iteration)
+
+
+# --- Run the Test Suite ---
+FlowSuite.Run()

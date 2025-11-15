@@ -39,7 +39,9 @@ namespace Aleng
         EvaluatedValue Visit(const ListNode &node);
         EvaluatedValue Visit(const MapNode &node);
 
-        EvaluatedValue ExecuteModule(const std::string &sourceCode, const ImportModuleNode &node, const std::string &modulePath);
+        EvaluatedValue ExecuteAndStoreModule(const std::string &sourceCode, const ImportModuleNode &node, const std::string &modulePath);
+
+
 
         static EvaluatedValue Visit(const BooleanNode &node);
 
@@ -56,6 +58,7 @@ namespace Aleng
 
         static EvaluatedValue Visit(const ContinueNode &node);
         EvaluatedValue Visit(const AssignExpressionNode &node);
+        EvaluatedValue Visit(const MemberAccessNode & node);
         EvaluatedValue Visit(const FunctionDefinitionNode &node);
         EvaluatedValue Visit(const FunctionCallNode &node);
         EvaluatedValue Visit(const ImportModuleNode &node);
@@ -97,7 +100,6 @@ namespace Aleng
         std::unordered_map<std::string, BuiltinFunctionCallback> m_NativeCallbacks;
 
         ModuleManager& m_ModuleManager;
-        std::unordered_map<std::string, EvaluatedValue> m_ModuleCache;
     };
 
     template <class... Ts>

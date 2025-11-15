@@ -30,6 +30,7 @@ namespace Aleng
         RANGE,         // ..
 
         COMMA,     // ,
+        DOT,       // .
         COLON,     // :
         SEMICOLON, // ;
         DOLLAR,    // $
@@ -51,7 +52,7 @@ namespace Aleng
         RETURN,   // Return
         BREAK,    // Break
         CONTINUE, // Continue
-        MODULE,   // Module
+        IMPORT,   // Import
 
         TRUE,  // True
         FALSE, // False

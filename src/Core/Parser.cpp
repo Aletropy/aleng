@@ -370,7 +370,9 @@ namespace Aleng
 
         if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::ASSIGN)
         {
-            if (!dynamic_cast<IdentifierNode *>(left.get()) && !dynamic_cast<ListAccessNode *>(left.get()))
+            if (
+                !dynamic_cast<IdentifierNode *>(left.get()) && !dynamic_cast<ListAccessNode *>(left.get()) &&
+                !dynamic_cast<MemberAccessNode*>(left.get()))
                 throw AlengError("Invalid left-hand side in assignment expression.", m_Tokens[m_Index].Location);
 
             m_Index++;
@@ -551,7 +553,7 @@ namespace Aleng
             m_Index++;
             primaryExpr = std::make_unique<IdentifierNode>(token.Value, token.Location);
         }
-        else if (token.Type == TokenType::MODULE)
+        else if (token.Type == TokenType::IMPORT)
         {
             m_Index++;
             if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::STRING)
@@ -598,6 +600,19 @@ namespace Aleng
                     throw AlengError("Expected ']' after index expression.", token.Location);
                 m_Index++;
                 primaryExpr = std::make_unique<ListAccessNode>(std::move(primaryExpr), std::move(indexExpr), token.Location);
+            }
+            else if (m_Tokens[m_Index].Type == TokenType::DOT)
+            {
+                Token dotToken = m_Tokens[m_Index];;
+                m_Index++;
+
+                if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
+                    throw AlengError("Expected member name after '.'", token.Location);
+
+                Token memberToken = m_Tokens[m_Index];
+                m_Index++;
+
+                primaryExpr = std::make_unique<MemberAccessNode>(std::move(primaryExpr), memberToken, dotToken.Location);
             }
             else
                 break;

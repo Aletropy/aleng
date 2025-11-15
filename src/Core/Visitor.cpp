@@ -93,6 +93,15 @@ namespace Aleng
                 PrintEvaluatedValue(arg, true);
             return 0.0; });
 
+        RegisterBuiltinCallback("ToNumber", [&](Visitor &visitor, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
+                                                {
+            if (args.size() != 1)
+                throw AlengError("ToNumber expects exacts 1 argument", ctx);
+            auto& arg = args[0];
+            const bool isNumber = std::holds_alternative<double>(arg);
+            return isNumber ? arg : std::stod(std::get<std::string>(arg)); });
+
+
         for (auto stdLibs = StdLib::GetLibraries(); const auto& [name, source] : stdLibs)
         {
             try
@@ -113,9 +122,9 @@ namespace Aleng
                 }
                 PopScope();
 
-                m_ModuleCache[name] = exportsMap;
+                m_ModuleManager.RegisterModule(name, exportsMap);
             }
-            catch (const AlengError& e)
+            catch (const AlengError& _)
             {
                 throw;
             }
@@ -188,27 +197,9 @@ namespace Aleng
     {
 
 
-        m_Functions.emplace("IsString", Callable([&](Visitor &visitor, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
-                                                 {
-            bool isString = true;
-            for (auto &arg : args)
-                if(!std::holds_alternative<std::string>(arg)) isString = false;
-            return isString ? 1.0 : 0.0; }));
 
-        m_Functions.emplace("IsNumber", Callable([&](Visitor &visitor, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
-                                                 {
-            bool isNumber = true;
-            for (auto &arg : args)
-                if(!std::holds_alternative<double>(arg)) isNumber = false;
-            return isNumber ? 1.0 : 0.0; }));
 
-        m_Functions.emplace("ParseNumber", Callable([&](Visitor &visitor, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
-                                                    {
-                                                        if (args.size() != 1)
-                                                            throw AlengError("ParseNumber expects exacts 1 argument", ctx);
-                                                        auto& arg = args[0];
-                                                        bool isNumber = std::holds_alternative<double>(arg);
-                                                        return isNumber ? arg : std::stod(std::get<std::string>(arg)); }));
+
         m_Functions.emplace("Len", Callable([&](Visitor &, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
                                             {
                 if (args.size() != 1)
@@ -603,7 +594,7 @@ namespace Aleng
         return mapWrapper;
     }
 
-    EvaluatedValue Visitor::ExecuteModule(const std::string &sourceCode, const ImportModuleNode& node, const std::string& modulePath)
+    EvaluatedValue Visitor::ExecuteAndStoreModule(const std::string &sourceCode, const ImportModuleNode& node, const std::string& modulePath)
     {
         Parser parser(sourceCode, modulePath);
         const auto ast = parser.ParseProgram();
@@ -634,6 +625,7 @@ namespace Aleng
         PopScope();
 
         const EvaluatedValue moduleExports = exportsMap;
+        m_ModuleManager.RegisterModule(node.ModuleName, exportsMap);
         return moduleExports;
     }
 
@@ -728,7 +720,7 @@ namespace Aleng
             AssignVariable(idNode->Value, valueToAssign);
             return valueToAssign;
         }
-        else if (auto listAccess = dynamic_cast<const ListAccessNode *>(node.Left.get()))
+        if (auto listAccess = dynamic_cast<const ListAccessNode *>(node.Left.get()))
         {
             auto listObjectVal = listAccess->Object->Accept(*this);
             auto indexVal = listAccess->Index->Accept(*this);
@@ -765,9 +757,52 @@ namespace Aleng
                 throw AlengError(objectName + " is not a iterator, cannot perform indexed assignment.", node);
             }
         }
+        if (auto memberAccess = dynamic_cast<const MemberAccessNode *>(node.Left.get()))
+        {
+            auto objectVal = memberAccess->Object->Accept(*this);
+            const std::string& memberName = memberAccess->MemberIdentifier.Value;
+
+            if (auto mapWrapperPtr = std::get_if<MapStorage>(&objectVal))
+            {
+                (*mapWrapperPtr)->elements[memberName] = valueToAssign;
+                return valueToAssign;
+            }
+
+            std::string objectTypeName = AlengTypeToString(GetAlengType(objectVal));
+            throw AlengError("Cannot assign to a member of a non-map type ('" + objectTypeName + "').", *memberAccess->Object);
+        }
 
         throw AlengError("Invalid left-hand side in assignment.", node);
     }
+
+    EvaluatedValue Visitor::Visit(const MemberAccessNode &node)
+    {
+        const auto objectVal = node.Object->Accept(*this);
+        const std::string& memberName = node.MemberIdentifier.Value;
+
+        if (const auto mapWrapperPtr = std::get_if<MapStorage>(&objectVal))
+        {
+            auto &mapElements = (*mapWrapperPtr)->elements;
+            const auto it = mapElements.find(memberName);
+            if (it == mapElements.end())
+                throw AlengError("Member \"" + memberName + "\" not found in map.", node);
+            return it->second;
+        }
+
+        if (const auto strPtr = std::get_if<std::string>(&objectVal))
+        {
+            if (memberName == "length")
+            {
+                return static_cast<double>(strPtr->size());
+            }
+
+            throw AlengError("Member \"" + memberName + "\" not found in string.", *node.Object);
+        }
+
+        const std::string objectTypeName = AlengTypeToString(GetAlengType(objectVal));
+        throw AlengError("Member access operator '.' cannot be used on type '" + objectTypeName + "'.", *node.Object);
+    }
+
     EvaluatedValue Visitor::Visit(const EqualsExpressionNode &node)
     {
         auto left = node.Left->Accept(*this);

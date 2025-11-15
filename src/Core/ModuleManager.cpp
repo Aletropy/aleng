@@ -19,6 +19,11 @@ namespace Aleng
         m_NativeLibraries[name] = std::move(library);
     }
 
+    void ModuleManager::RegisterModule(const std::string &name, const MapStorage &exportsMap)
+    {
+        m_ModulesCache[name] = exportsMap;
+    }
+
     EvaluatedValue ModuleManager::LoadModule(const std::string &name, const ImportModuleNode &contextNode, Visitor &visitor)
     {
         if (m_ModulesCache.contains(name))
@@ -71,7 +76,7 @@ namespace Aleng
 
         try
         {
-            return visitor.ExecuteModule(sourceCode, contextNode, modulePath.string());
+            return visitor.ExecuteAndStoreModule(sourceCode, contextNode, modulePath.string());
         } catch (const AlengError &err)
         {
             throw;
@@ -80,7 +85,5 @@ namespace Aleng
         {
             throw;
         }
-
-        throw AlengError("Module '" + name + "' could not be found as a native or scripted module.", contextNode);
     }
 } // Aleng

@@ -82,15 +82,6 @@ namespace Aleng
 
         auto c = m_Input[m_Index];
 
-        if (c == '.')
-        {
-            if (m_Index + 1 < m_Input.length() && m_Input[m_Index + 1] == '.')
-            {
-                advance(2);
-                return {TokenType::RANGE, "..", startLoc};
-            }
-        }
-
         // Number verification
         if (std::isdigit(c))
         {
@@ -148,8 +139,8 @@ namespace Aleng
                 return {TokenType::BREAK, value, startLoc};
             else if (value == "Continue")
                 return {TokenType::CONTINUE, value, startLoc};
-            else if (value == "Module")
-                return {TokenType::MODULE, value, startLoc};
+            else if (value == "Import")
+                return {TokenType::IMPORT, value, startLoc};
             else if (value == "End")
                 return {TokenType::END, value, startLoc};
             else if (value == "True")
@@ -220,6 +211,18 @@ namespace Aleng
 
             advance();
             return {TokenType::STRING, value, startLoc};
+        }
+
+        if (c == '.')
+        {
+            if (m_Index + 1 < m_Input.length() && m_Input[m_Index + 1] == '.')
+            {
+                advance(2);
+                return {TokenType::RANGE, "..", startLoc};
+            }
+
+            advance();
+            return {TokenType::DOT, ".", startLoc};
         }
 
         if (c == '>')

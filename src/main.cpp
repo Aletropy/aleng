@@ -5,7 +5,6 @@
 #include "Core/Error.h"
 
 #include <filesystem>
-#include <map>
 #include <fstream>
 #include <sstream>
 
@@ -86,7 +85,6 @@ int main(int argc, char *argv[])
         else if (fs::is_regular_file(targetPath))
         {
             workspacePath = targetPath.parent_path();
-            mainFilename = targetPath.filename().string();
         }
         else
         {

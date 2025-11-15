@@ -664,6 +664,34 @@ namespace Aleng
         EvaluatedValue Accept(Visitor &visitor) const override;
     };
 
+    struct MemberAccessNode : ASTNode
+    {
+        NodePtr Object;
+        Token MemberIdentifier;
+
+        MemberAccessNode(NodePtr obj, Token member, TokenLocation loc)
+            : Object(std::move(obj)), MemberIdentifier(std::move(member))
+        {
+            this->Location = loc;
+        }
+
+        void Print(std::ostream &os) const override
+        {
+            os << *Object;
+            os << ".";
+            os << MemberIdentifier.Value;
+        }
+
+        NodePtr Clone() const override
+        {
+            return std::make_unique<MemberAccessNode>(
+                Object ? Object->Clone() : nullptr,
+                MemberIdentifier, Location);
+        }
+
+        EvaluatedValue Accept(Visitor &visitor) const override;
+    };
+
     struct ListAccessNode : ASTNode
     {
         NodePtr Object;

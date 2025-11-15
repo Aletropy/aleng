@@ -1,5 +1,6 @@
 build/
 sandbox/
+stdlib/
 
 .venv/
 .idea/

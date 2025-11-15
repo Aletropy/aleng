@@ -159,6 +159,12 @@ namespace Aleng
     {
         return visitor.Visit(*this);
     }
+
+    EvaluatedValue MemberAccessNode::Accept(Visitor &visitor) const
+    {
+        return visitor.Visit(*this);
+    }
+
     EvaluatedValue ListAccessNode::Accept(Visitor &visitor) const
     {
         return visitor.Visit(*this);

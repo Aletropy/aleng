@@ -1,5 +1,7 @@
 #include "Error.h"
 
+#include <iostream>
+
 namespace Aleng
 {
     void PrintFormattedError(const AlengError &err, const std::string &sourceCode)

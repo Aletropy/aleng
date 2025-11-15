@@ -283,7 +283,84 @@ namespace Aleng
         NodePtr body = std::make_unique<BlockNode>(std::move(bodyStatements), bodyStartLoc);
         m_Index++;
 
-        return std::make_unique<FunctionDefinitionNode>(funcName, std::move(params), std::move(body), startToken.Location);
+        return std::make_unique<FunctionDefinitionNode>(std::make_optional(funcName), std::move(params), std::move(body), startToken.Location);
+    }
+
+    NodePtr Parser::ParseFunctionLiteral()
+    {
+        const Token startToken = m_Tokens[m_Index];
+        m_Index++;
+
+        if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::LPAREN)
+            throw AlengError("Expected '(' after Fn for a anonymous function.", startToken.Location);
+        m_Index++;
+
+        std::vector<Parameter> params;
+        bool expectComma = false;
+        bool processedVariadic = false;
+        while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::RPAREN)
+        {
+            if (processedVariadic)
+            {
+                throw AlengError("Variadic parameters must be the last parameters in a function definition.", m_Tokens[m_Index].Location);
+                break;
+            }
+
+            if (expectComma && m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::COMMA && m_Tokens[m_Index].Type != TokenType::RPAREN)
+            {
+                throw AlengError("Expected ',' between parameters or ')'", m_Tokens[m_Index].Location);
+                m_Index++;
+            }
+
+            if (expectComma)
+                m_Index++;
+
+            bool isVariadic = false;
+            if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::DOLLAR)
+            {
+                m_Index++;
+                isVariadic = true;
+                processedVariadic = true;
+            }
+
+            if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
+                throw AlengError("Expected parameter name", m_Tokens[m_Index].Location);
+
+            auto paramToken = m_Tokens[m_Index];
+            std::string paramName = paramToken.Value;
+            std::optional<std::string> typeName;
+
+            m_Index++;
+
+            if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::COLON)
+            {
+                if (Peek().Type != TokenType::IDENTIFIER)
+                    throw AlengError("Expected type name after ':'", m_Tokens[m_Index].Location);
+                m_Index++;
+                auto typeNameToken = m_Tokens[m_Index];
+                typeName = typeNameToken.Value;
+                m_Index++;
+            }
+
+            params.emplace_back(paramName, typeName, isVariadic);
+            expectComma = true;
+        }
+        m_Index++;
+
+        auto bodyStartLoc = m_Tokens[m_Index].Location;
+        std::vector<NodePtr> bodyStatements;
+        while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END)
+        {
+            bodyStatements.push_back(Statement());
+        }
+
+        if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::END)
+            throw AlengError("Expected 'End' to close anonymous function.", m_Tokens[m_Index-1].Location);
+
+        NodePtr body = std::make_unique<BlockNode>(std::move(bodyStatements), bodyStartLoc);
+        m_Index++;
+
+        return std::make_unique<FunctionDefinitionNode>(std::nullopt, std::move(params), std::move(body), startToken.Location);
     }
 
     NodePtr Parser::ParseBlock()
@@ -464,7 +541,8 @@ namespace Aleng
     {
         auto left = UnaryExpression();
 
-        while (m_Index < m_Tokens.size() && (m_Tokens[m_Index].Type == TokenType::MULTIPLY || m_Tokens[m_Index].Type == TokenType::DIVIDE))
+        while (m_Index < m_Tokens.size() && (m_Tokens[m_Index].Type == TokenType::MULTIPLY || m_Tokens[m_Index].Type == TokenType::DIVIDE ||
+            m_Tokens[m_Index].Type == TokenType::MODULO))
         {
             auto op = m_Tokens[m_Index];
             m_Index++;
@@ -499,8 +577,6 @@ namespace Aleng
     {
         auto token = m_Tokens[m_Index];
         NodePtr primaryExpr = nullptr;
-
-
 
         if (token.Type == TokenType::TRUE)
         {
@@ -547,6 +623,10 @@ namespace Aleng
             NodePtr operand = Factor();
             auto zero = std::make_unique<IntegerNode>(0, token.Location);
             primaryExpr = std::make_unique<BinaryExpressionNode>(TokenType::MINUS, std::move(zero), std::move(operand), token.Location);
+        }
+        else if (token.Type == TokenType::FUNCTION)
+        {
+            primaryExpr = ParseFunctionLiteral();
         }
         else if (token.Type == TokenType::IDENTIFIER)
         {

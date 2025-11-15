@@ -23,6 +23,7 @@ namespace Aleng
         MULTIPLY,      // *
         POWER,         // ^
         DIVIDE,        // /
+        MODULO,        // %
         GREATER,       // >
         GREATER_EQUAL, // >=
         MINOR,         // <
@@ -100,6 +101,8 @@ namespace Aleng
             return "*";
         case TokenType::DIVIDE:
             return "/";
+        case TokenType::MODULO:
+            return "%";
         case TokenType::AND:
             return "and";
         case TokenType::NOT:
@@ -124,6 +127,8 @@ namespace Aleng
             return ")";
         case TokenType::COLON:
             return ":";
+        case TokenType::DOT:
+                return ".";
         case TokenType::SEMICOLON:
             return ";";
         case TokenType::UNKNOWN:

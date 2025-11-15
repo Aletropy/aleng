@@ -33,27 +33,29 @@ namespace Aleng
 
         if (m_NativeLibraries.contains(name))
         {
-            auto [Functions] = m_NativeLibraries.at(name);
-            const auto exportsMap = std::make_shared<MapRecursiveWrapper>();
+            auto [Functions, Variables] = m_NativeLibraries.at(name);
+            auto exportsMap = std::make_shared<MapRecursiveWrapper>();
 
-            for(const auto &[funcName, funcCallback]: Functions)
-            {
-                auto funcObj = std::make_shared<FunctionObject>(funcName);
-                exportsMap->elements[funcName] = std::make_shared<FunctionObject>(name + "." + funcName);
-            }
-
-            auto exports = std::make_shared<MapRecursiveWrapper>();
             for (const auto& [funcName, funcCallback] : Functions)
             {
-                std::string fullName = "native::" + name + "::" + funcName;
-                visitor.RegisterBuiltinCallback(fullName, funcCallback);
-
-                auto funcObject = std::make_shared<FunctionObject>(fullName);
-                exports->elements[funcName] = funcObject;
+                visitor.RegisterBuiltinCallback(funcName, funcCallback);
             }
 
-            m_ModulesCache[name] = exports;
-            return exports;
+            for (const auto& [funcName, _] : Functions)
+            {
+                if (!funcName.starts_with("native::"))
+                {
+                    exportsMap->elements[funcName] = std::make_shared<FunctionObject>(funcName);
+                }
+            }
+
+            for (const auto& [varName, varValue] : Variables)
+            {
+                exportsMap->elements[varName] = varValue;
+            }
+
+            m_ModulesCache[name] = exportsMap;
+            return exportsMap;
         }
 
 

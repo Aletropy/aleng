@@ -286,6 +286,9 @@ namespace Aleng
         case '^':
             advance();
             return {TokenType::POWER, c, startLoc};
+        case '%':
+            advance();
+            return {TokenType::MODULO, c, startLoc};
         case ',':
             advance();
             return {TokenType::COMMA, c, startLoc};

@@ -1,4 +1,7 @@
 #include "AST.h"
+
+#include <iostream>
+
 #include "Visitor.h"
 
 namespace Aleng

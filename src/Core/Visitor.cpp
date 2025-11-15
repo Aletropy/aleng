@@ -1,7 +1,9 @@
 #include "Visitor.h"
 
+#include <cmath>
 #include <fstream>
 #include <filesystem>
+#include <iostream>
 #include <ranges>
 #include <sstream>
 
@@ -12,6 +14,8 @@
 #include "Error.h"
 
 #include "ControlFlow.h"
+
+#include "ModuleManager.h"
 
 namespace fs = std::filesystem;
 
@@ -43,21 +47,7 @@ namespace Aleng
 
 namespace Aleng
 {
-    bool Visitor::IsTruthy(const EvaluatedValue &val)
-    {
-        if (const auto pval = std::get_if<double>(&val))
-            return *pval != 0.0;
-        else if (const auto sval = std::get_if<std::string>(&val))
-            return !sval->empty();
-        else if (const auto bval = std::get_if<bool>(&val))
-            return *bval;
-        else if (const auto lval = std::get_if<ListStorage>(&val))
-            return !(*lval)->elements.empty();
-        else if (const auto mval = std::get_if<MapStorage>(&val))
-            return !(*mval)->elements.empty();
 
-        return false;
-    }
 
     AlengType Visitor::GetAlengType(const EvaluatedValue &val)
     {
@@ -101,6 +91,42 @@ namespace Aleng
             const bool isNumber = std::holds_alternative<double>(arg);
             return isNumber ? arg : std::stod(std::get<std::string>(arg)); });
 
+        RegisterBuiltinCallback("Append", [&](Visitor &, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
+                                               {
+                if (args.size() < 2)
+                    throw AlengError("Append expects (List, ...).", ctx);
+                auto objectVal = args[0];
+
+                if (auto pListWrapper = std::get_if<ListStorage>(&objectVal))
+                {
+                    for(size_t i = 1; i < args.size(); i++)
+                        (*pListWrapper)->elements.push_back(args[i]);
+                    return *pListWrapper;
+                }
+
+                throw AlengError(
+                    "Object of type '" + AlengTypeToString(GetAlengType(objectVal)) + "' not supported for Append function.", ctx); });
+        RegisterBuiltinCallback("Pop", [&](Visitor &, const std::vector<EvaluatedValue> &args, const FunctionCallNode &ctx) -> EvaluatedValue
+                                            {
+                if (args.size() != 1)
+                    throw AlengError("Len expects exacts one list as argument.", ctx);
+                auto objectVal = args[0];
+
+                if (const auto pListWrapper = std::get_if<ListStorage>(&objectVal))
+                {
+                    if(const auto& elements = (*pListWrapper)->elements; !elements.empty())
+                    {
+                        auto element = elements[elements.size()-1];
+                        (*pListWrapper)->elements.pop_back();
+                        return element;
+                    }
+                    else
+                        return false;
+                }
+
+                throw AlengError(
+                    "Object of type '" + AlengTypeToString(GetAlengType(objectVal)) + "' not supported for Pop function.", ctx); });
+
 
         for (auto stdLibs = StdLib::GetLibraries(); const auto& [name, source] : stdLibs)
         {
@@ -115,7 +141,7 @@ namespace Aleng
                 auto exportsMap = std::make_shared<MapRecursiveWrapper>();
                 if (!m_SymbolTableStack.empty())
                 {
-                    for (const auto& [varName, value] : m_SymbolTableStack.back())
+                    for (const auto& [varName, value] : *m_SymbolTableStack.back())
                     {
                         exportsMap->elements[varName] = value;
                     }
@@ -138,7 +164,7 @@ namespace Aleng
 
     void Visitor::PushScope()
     {
-        m_SymbolTableStack.emplace_back();
+        m_SymbolTableStack.push_back(std::make_shared<SymbolTable>());
     }
 
     void Visitor::PopScope()
@@ -160,28 +186,28 @@ namespace Aleng
         if (!allowRedefinitionCurrentScope && IsVariableDefinedInCurrentScope(name))
             throw std::runtime_error("Variable '" + name + "' already defined in the current scope.");
 
-        m_SymbolTableStack.back()[name] = value;
+        (*m_SymbolTableStack.back())[name] = value;
     }
 
     void Visitor::AssignVariable(const std::string &name, const EvaluatedValue &value)
     {
-        for (auto & it : std::ranges::reverse_view(m_SymbolTableStack))
+        for (const auto & scope_ptr : std::ranges::reverse_view(m_SymbolTableStack))
         {
-            if (it.contains(name))
+            if (scope_ptr->contains(name))
             {
-                it[name] = value;
+                (*scope_ptr)[name] = value;
                 return;
             }
         }
 
-        m_SymbolTableStack.back()[name] = value;
+        (*m_SymbolTableStack.back())[name] = value;
     }
 
     EvaluatedValue Visitor::LookupVariable(const std::string &name)
     {
-        for (auto & it : std::ranges::reverse_view(m_SymbolTableStack))
-            if (it.contains(name))
-                return it.at(name);
+        for (const auto & scope_ptr : std::ranges::reverse_view(m_SymbolTableStack))
+            if (scope_ptr->contains(name))
+                return scope_ptr->at(name);
 
         throw std::runtime_error("Identifier \"" + name + "\" not defined.");
     }
@@ -190,7 +216,7 @@ namespace Aleng
     {
         if (m_SymbolTableStack.empty())
             return false;
-        return m_SymbolTableStack.back().contains(name);
+        return m_SymbolTableStack.back()->contains(name);
     }
 
     /*void Visitor::RegisterBuiltinFunctions()
@@ -617,7 +643,7 @@ namespace Aleng
         auto exportsMap = std::make_shared<MapRecursiveWrapper>();
         if (!m_SymbolTableStack.empty())
         {
-            for (const auto& [Name, Value] : m_SymbolTableStack.back())
+            for (const auto& [Name, Value] : (*m_SymbolTableStack.back()))
             {
                 exportsMap->elements[Name] = Value;
             }
@@ -647,10 +673,10 @@ namespace Aleng
     }
     EvaluatedValue Visitor::Visit(const IdentifierNode &node)
     {
-        for (auto & it : std::ranges::reverse_view(m_SymbolTableStack))
+        for (const auto & scope_ptr : std::ranges::reverse_view(m_SymbolTableStack))
         {
-            if (it.contains(node.Value))
-                return it.at(node.Value);
+            if (scope_ptr->contains(node.Value))
+                return scope_ptr->at(node.Value);
         }
 
         if (m_NativeCallbacks.contains(node.Value))
@@ -782,11 +808,24 @@ namespace Aleng
 
         if (const auto mapWrapperPtr = std::get_if<MapStorage>(&objectVal))
         {
+            if (memberName == "length")
+            {
+                return static_cast<double>((*mapWrapperPtr)->elements.size());
+            }
+
             auto &mapElements = (*mapWrapperPtr)->elements;
             const auto it = mapElements.find(memberName);
             if (it == mapElements.end())
                 throw AlengError("Member \"" + memberName + "\" not found in map.", node);
             return it->second;
+        }
+
+        if (const auto listWrapperPtr = std::get_if<ListStorage>(&objectVal))
+        {
+            if (memberName == "length")
+            {
+                return static_cast<double>((*listWrapperPtr)->elements.size());
+            }
         }
 
         if (const auto strPtr = std::get_if<std::string>(&objectVal))
@@ -814,7 +853,7 @@ namespace Aleng
                              {
                                  areEqual = l == r;
                              },
-                             [&](const std::string &l, const std::string &r)
+                             [&](std::string l, std::string r)
                              {
                                  areEqual = l == r;
                              },
@@ -822,11 +861,11 @@ namespace Aleng
                              {
                                  areEqual = l == r;
                              },
-                             [&](const MapStorage &l, const MapStorage &r)
+                             [&](MapStorage l, MapStorage r)
                              {
                                  areEqual = (l->elements == r->elements);
                              },
-                             [&](const ListStorage &l, const ListStorage &r)
+                             [&](ListStorage l, ListStorage r)
                              {
                                  areEqual = (l->elements == r->elements);
                              },
@@ -848,19 +887,21 @@ namespace Aleng
 
     EvaluatedValue Visitor::Visit(const FunctionDefinitionNode &node)
     {
-        if (IsVariableDefinedInCurrentScope(node.FunctionName))
-        {
-            throw AlengError("Function '" + node.FunctionName + "' already defined.", node);
-        }
+        std::string internalName = node.FunctionName.value_or("lambda@" + std::to_string(node.Location.Line));
 
         auto funcNodeCopy = std::make_shared<FunctionDefinitionNode>(node);
-
         SymbolTableStack currentEnv = m_SymbolTableStack;
 
-        auto funcObject = std::make_unique<FunctionObject>(node.FunctionName, funcNodeCopy, currentEnv);
-        auto functionStorage = FunctionStorage(std::move(funcObject));
+        auto functionStorage = std::make_shared<FunctionObject>(internalName, funcNodeCopy, currentEnv);
 
-        m_SymbolTableStack.back()[node.FunctionName] = functionStorage;
+        if (node.FunctionName)
+        {
+            if (IsVariableDefinedInCurrentScope(*node.FunctionName))
+            {
+                throw AlengError("Identifier '" + *node.FunctionName + "' already defined in this scope.", node);
+            }
+            (*m_SymbolTableStack.back())[*node.FunctionName] = functionStorage;
+        }
 
         return functionStorage;
     }
@@ -899,6 +940,8 @@ namespace Aleng
             size_t argIdx = 0;
             bool variadicProcessed = false;
 
+            auto funcName = funcDef.FunctionName.value_or("lambda@" + std::to_string(funcDef.Location.Line));
+
             for (const auto &param : funcDef.Parameters)
             {
                 if (param.IsVariadic)
@@ -916,7 +959,7 @@ namespace Aleng
                 if (argIdx >= resolvedArgs.size())
                 {
                     PopScope();
-                    throw AlengError("Not enough arguments for function '" + funcDef.FunctionName + "'. Expected parameter '" + param.Name + "'.", node);
+                    throw AlengError("Not enough arguments for function '" + funcName + "'. Expected parameter '" + param.Name + "'.", node);
                 }
 
                 const EvaluatedValue &argVal = resolvedArgs[argIdx];
@@ -932,14 +975,14 @@ namespace Aleng
                     else
                     {
                         PopScope();
-                        throw AlengError("Unknown type name '" + *param.TypeName + "' in function '" + funcDef.FunctionName + "' signature for parameter '" + param.Name + "'.", node);
+                        throw AlengError("Unknown type name '" + *param.TypeName + "' in function '" + funcName + "' signature for parameter '" + param.Name + "'.", node);
                     }
 
                     AlengType actualType = GetAlengType(argVal);
                     if (actualType != expectedType)
                     {
                         PopScope();
-                        throw AlengError("Type mismatch for parameter '" + param.Name + "' in function '" + funcDef.FunctionName +
+                        throw AlengError("Type mismatch for parameter '" + param.Name + "' in function '" + funcName +
                                              "'. Expected " + *param.TypeName + " (" + AlengTypeToString(expectedType) +
                                              ") but got " + AlengTypeToString(actualType) + ".",
                                          node);
@@ -953,7 +996,7 @@ namespace Aleng
             if (!variadicProcessed && argIdx < resolvedArgs.size())
             {
                 PopScope();
-                throw AlengError("Too many arguments for function '" + funcDef.FunctionName + "'. Expected " + std::to_string(funcDef.Parameters.size()) + " arguments, got " + std::to_string(resolvedArgs.size()) + ".", node);
+                throw AlengError("Too many arguments for function '" + funcName + "'. Expected " + std::to_string(funcDef.Parameters.size()) + " arguments, got " + std::to_string(resolvedArgs.size()) + ".", node);
             }
 
             EvaluatedValue result;
@@ -1030,6 +1073,11 @@ namespace Aleng
                             throw AlengError("Division by 0  is an error.", node);
                         finalValue = EvaluatedValue(l / r);
                         break;
+                    case TokenType::MODULO:
+                        if (r == 0.0)
+                            throw AlengError("Modulo by 0  is an error.", node);
+                        finalValue = EvaluatedValue(std::fmod(l, r));
+                        break;
                     case TokenType::GREATER:
                         finalValue = EvaluatedValue(l > r);
                         break;
@@ -1046,7 +1094,7 @@ namespace Aleng
                         throw AlengError("Unknown operator for binary expression: " + TokenTypeToString(node.Operator), node);
                     }
                 },
-                [&](const std::string &l, const std::string &r)
+                [&](std::string l, std::string r)
                 {
                     switch (node.Operator)
                     {
@@ -1069,7 +1117,7 @@ namespace Aleng
                         throw AlengError("Only concatenation operator for strings supported.", node);
                     }
                 },
-                [&](const std::string &l, double r)
+                [&](std::string l, double r)
                 {
                     auto ss = std::stringstream();
 
@@ -1089,7 +1137,7 @@ namespace Aleng
                         throw AlengError("Unknown operator for binary expression: " + TokenTypeToString(node.Operator), node);
                     }
                 },
-                [&](const ListStorage &l, const ListStorage &r)
+                [&](ListStorage l, ListStorage r)
                 {
                     auto finalList = std::make_shared<ListRecursiveWrapper>();
 

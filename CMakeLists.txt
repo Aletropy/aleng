@@ -44,6 +44,7 @@ add_executable(Aleng
         src/Core/ModuleManager.cpp
         src/Core/ModuleManager.h
         src/Core/NativeRegistry.cpp
+        src/Modules/StdTest.cpp
 )
 
 target_include_directories(Aleng PUBLIC

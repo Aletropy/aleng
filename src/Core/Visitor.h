@@ -6,10 +6,12 @@
 #include <functional>
 #include <memory>
 
-#include "ModuleManager.h"
+#include "Modules/NativeModule.h"
 
 namespace Aleng
 {
+    class ModuleManager;
+
     enum class AlengType
     {
         NUMBER,
@@ -67,7 +69,6 @@ namespace Aleng
         EvaluatedValue Visit(const EqualsExpressionNode &node);
 
     private:
-        static bool IsTruthy(const EvaluatedValue &val);
         static AlengType GetAlengType(const EvaluatedValue &val);
     public:
         void PushScope();

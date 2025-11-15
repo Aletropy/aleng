@@ -23,7 +23,7 @@ namespace Aleng::StdLib
         NativeLibrary lib;
         lib.Functions["Sin"] = Math_Sin;
         lib.Functions["Cos"] = Math_Cos;
-        lib.Functions["PI"] = [](Visitor&, const auto&, const auto&) { return std::numbers::pi; };
+        lib.Variables["PI"] = std::numbers::pi;
 
         return lib;
     }

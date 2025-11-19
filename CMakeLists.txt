@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 4.1)
 
 project(Aleng LANGUAGES CXX VERSION 0.01)
 
@@ -89,4 +89,18 @@ else()
 
     add_executable(AlengCLI src/Apps/CLI/main.cpp)
     target_link_libraries(AlengCLI PRIVATE AlengCore)
+endif()
+
+include(FetchContent)
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz)
+FetchContent_MakeAvailable(json)
+
+if (NOT EMSCRIPTEN)
+    add_executable(AlengLSP
+            src/Apps/LSP/main.cpp
+            src/Apps/LSP/LSPTransport.h
+            src/Apps/LSP/LSPTransport.cpp
+    )
+
+    target_link_libraries(AlengLSP PRIVATE AlengCore nlohmann_json::nlohmann_json)
 endif()

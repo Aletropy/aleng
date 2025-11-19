@@ -1,0 +1,43 @@
+{
+  "name": "aleng-vscode",
+  "displayName": "Aleng Language",
+  "description": "Official support for Aleng language in Visual Studio Code.",
+  "version": "0.0.1",
+  "publisher": "aletropy",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:aleng"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "aleng",
+        "aliases": [
+          "Aleng",
+          "aleng"
+        ],
+        "extensions": [
+          ".aleng"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -b",
+    "watch": "tsc -b -w"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/vscode": "^1.106.1",
+    "types-node": "^0.0.1-security",
+    "typescript": "^5.9.3",
+    "vscode-languageclient": "^9.0.1"
+  }
+}

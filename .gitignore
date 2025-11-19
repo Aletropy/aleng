@@ -1,8 +1,12 @@
 build/
 build-wasm/
+out/
 sandbox/
 stdlib/
 
+node_modules/
 .venv/
 .idea/
 .vscode/
+
+*.tsbuildinfo

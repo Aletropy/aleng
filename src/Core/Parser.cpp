@@ -208,6 +208,9 @@ namespace Aleng
 
     NodePtr Parser::ParseFunctionDefinition()
     {
+        if (m_Index+1 < m_Tokens.size() && m_Tokens[m_Index+1].Type != TokenType::IDENTIFIER)
+            return ParseFunctionLiteral();
+
         Token startToken = m_Tokens[m_Index];
         m_Index++;
 

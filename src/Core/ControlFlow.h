@@ -10,6 +10,9 @@ namespace Aleng
     public:
         EvaluatedValue Value;
         ReturnSignal(EvaluatedValue val) : Value(std::move(val)) {}
+        const char* what() const noexcept override {
+            return "ReturnSignal (Control Flow)";
+        }
     };
 
     class BreakSignal : public std::exception

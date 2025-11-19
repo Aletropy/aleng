@@ -1,14 +1,14 @@
 #include <iostream>
 
-#include "Core/Visitor.h"
-#include "Core/Parser.h"
-#include "Core/Error.h"
+#include "../../Core/Visitor.h"
+#include "../../Core/Parser.h"
+#include "../../Core/Error.h"
 
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 
-#include "Core/ModuleManager.h"
+#include "../../Core/ModuleManager.h"
 
 namespace fs = std::filesystem;
 using namespace Aleng;

@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <utility>
+#include <sstream>
 
 #include "Error.h"
 #include "Parser.h"

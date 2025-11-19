@@ -43,6 +43,21 @@ namespace Aleng
             return "UNKNOWN_ALENG_TYPE";
         }
     }
+
+    struct ScopedEnvironmentSwap {
+        SymbolTableStack& m_TargetStack;
+        SymbolTableStack m_SavedStack;
+
+        ScopedEnvironmentSwap(SymbolTableStack& visitorStack, SymbolTableStack newEnv)
+            : m_TargetStack(visitorStack), m_SavedStack(std::move(visitorStack))
+        {
+            m_TargetStack = std::move(newEnv);
+        }
+
+        ~ScopedEnvironmentSwap() {
+            m_TargetStack = std::move(m_SavedStack);
+        }
+    };
 }
 
 namespace Aleng
@@ -930,8 +945,7 @@ namespace Aleng
             if (!funcObj.UserFuncNodeAst)
                 throw AlengError("Internal error: User-defined FunctionObject has no AST node for '" + funcObj.Name + "'.", node);
 
-            SymbolTableStack callingEnvironment = m_SymbolTableStack;
-            m_SymbolTableStack = funcObj.CapturedEnvironment;
+            ScopedEnvironmentSwap swapGuard(m_SymbolTableStack, funcObj.CapturedEnvironment);
 
             PushScope();
 
@@ -1009,9 +1023,24 @@ namespace Aleng
             {
                 result = signal.Value;
             }
+            catch (...)
+            {
+                std::exception_ptr p = std::current_exception();
+                try {
+                    if (p) std::rethrow_exception(p);
+                }
+                catch (const ReturnSignal &signal) {
+                    result = signal.Value;
+                }
+                catch (const std::exception& e) {
+                    throw;
+                }
+                catch (...) {
+                    throw AlengError("Critical: Unknown exception thrown inside function.", node);
+                }
+            }
 
             PopScope();
-            m_SymbolTableStack = callingEnvironment;
 
             return result;
         }

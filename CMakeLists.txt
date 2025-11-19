@@ -26,8 +26,7 @@ add_custom_target(
         DEPENDS ${STDLIB_OUTPUT_HEADER}
 )
 
-add_executable(Aleng
-    src/main.cpp
+add_library(AlengCore STATIC
     src/Core/Error.h
     src/Core/Error.cpp
     src/Core/AST.h
@@ -39,18 +38,55 @@ add_executable(Aleng
     src/Core/Parser.cpp
     src/Core/Visitor.h
     src/Core/Visitor.cpp
-        src/Modules/NativeModule.h
-        src/Modules/StdMath.cpp
-        src/Core/ModuleManager.cpp
-        src/Core/ModuleManager.h
-        src/Core/NativeRegistry.cpp
-        src/Modules/StdTest.cpp
+    src/Core/Modules/NativeModule.h
+    src/Core/Modules/StdMath.cpp
+    src/Core/ModuleManager.cpp
+    src/Core/ModuleManager.h
+    src/Core/NativeRegistry.cpp
+    src/Core/Modules/StdTest.cpp
 )
 
-target_include_directories(Aleng PUBLIC
+target_include_directories(AlengCore PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_BINARY_DIR}/Core/Generated
 )
 
-add_dependencies(Aleng GenerateStdLib)
+if (EMSCRIPTEN)
+    target_compile_options(AlengCore PRIVATE "-frtti" "-fexceptions")
+endif ()
 
+add_dependencies(AlengCore GenerateStdLib)
+
+if (EMSCRIPTEN)
+    message(STATUS "Building for WebAssembly (Emscripten)...")
+
+    add_executable(AlengWasm
+            src/Apps/Wasm/Bindings.cpp
+    )
+
+    target_link_libraries(AlengWasm PRIVATE AlengCore)
+
+    target_compile_options(AlengWasm PRIVATE "-fexceptions" "-frtti")
+
+    target_link_options(AlengWasm PRIVATE
+            "-fexceptions"
+            "-frtti"
+            "--bind"
+            "-sWASM=1"
+            "-sMODULARIZE=1"
+            "-sEXPORT_NAME='createAlengModule'"
+            "-sALLOW_MEMORY_GROWTH=1"
+            "-sFORCE_FILESYSTEM=1"
+            "-sNO_EXIT_RUNTIME=1"
+            "-sSTACK_SIZE=5MB"
+            "-sDISABLE_EXCEPTION_CATCHING=0"
+    )
+
+    set_target_properties(AlengWasm PROPERTIES SUFFIX ".js")
+
+else()
+    message(STATUS "Building for Native Terminal (CLI)...")
+
+    add_executable(AlengCLI src/Apps/CLI/main.cpp)
+    target_link_libraries(AlengCLI PRIVATE AlengCore)
+endif()

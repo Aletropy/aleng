@@ -8,8 +8,13 @@ namespace Aleng
 {
     void PrintEvaluatedValue(const EvaluatedValue &value, bool raw)
     {
-        if (auto pvalue = std::get_if<double>(&value))
-            std::cout << *pvalue;
+        if (auto dvalue = std::get_if<double>(&value)) {
+            if (double val = *dvalue; val == static_cast<long long>(val)) {
+                std::cout << static_cast<long long>(val);
+            } else {
+                std::cout << val;
+            }
+        }
         if (auto svalue = std::get_if<std::string>(&value))
             std::cout << *svalue;
         if (auto bvalue = std::get_if<bool>(&value))

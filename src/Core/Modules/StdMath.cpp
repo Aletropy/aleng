@@ -1,6 +1,7 @@
 #include <cmath>
 
 #include "NativeModule.h"
+#include <numbers>
 
 namespace Aleng::StdLib
 {

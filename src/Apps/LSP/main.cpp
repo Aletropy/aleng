@@ -2,13 +2,17 @@
 #include "LSPTransport.h"
 #include "Core/Parser.h"
 #include "Core/Error.h"
+#include <sstream>
+#include <map>
 
 using namespace AlengLSP;
 
 static Analyzer g_Analyzer;
+static std::map<std::string, std::string> g_DocumentStore;
 
 void ValidateTextDocument(LSPTransport &transport, const std::string &fileUri, const std::string &code)
 {
+    g_DocumentStore[fileUri] = code;
     json diagnostics = json::array();
 
     try
@@ -29,7 +33,7 @@ void ValidateTextDocument(LSPTransport &transport, const std::string &fileUri, c
                 {"start", {{"line", line}, {"character", col}}},
                 {"end", {{"line", line}, {"character", col + 5}}}
             };
-            diag["severity"] = 1; // Error
+            diag["severity"] = 1;
             diag["source"] = "Aleng Parser";
             diag["message"] = err.what();
 
@@ -55,6 +59,28 @@ void ValidateTextDocument(LSPTransport &transport, const std::string &fileUri, c
     transport.SendMessage(notification);
 }
 
+std::string GetLineText(const std::string& fullText, int lineNum) {
+    std::stringstream ss(fullText);
+    std::string segment;
+    int current = 0;
+    while(std::getline(ss, segment)) {
+        if (current == lineNum) return segment;
+        current++;
+    }
+    return "";
+}
+
+std::string GetVariableBeforeDot(const std::string& lineText, int column) {
+    if (column <= 1) return "";
+    int end = column - 2;
+    int start = end;
+
+    while (start >= 0 && (isalnum(lineText[start]) || lineText[start] == '_')) {
+        start--;
+    }
+    return lineText.substr(start + 1, end - start);
+}
+
 int main()
 {
     LSPTransport transport;
@@ -73,13 +99,23 @@ int main()
             json response;
             response["jsonrpc"] = "2.0";
             response["id"] = request["id"];
+
+            json legend = {
+                {"tokenTypes", {"variable", "function", "parameter", "string", "number", "keyword", "operator"}},
+                {"tokenModifiers", {"declaration", "defaultLibrary"}}
+            };
+
             response["result"] = {
                 {
                     "capabilities", {
-                        {"textDocumentSync", 1},
+                        {"textDocumentSync", 1}, // Full Sync
                         {"completionProvider", {
                             {"resolveProvider", false},
                             {"triggerCharacters", { "." }}
+                        }},
+                        {"semanticTokensProvider", {
+                            {"legend", legend},
+                            {"full", true}
                         }}
                     }
                 },
@@ -91,21 +127,16 @@ int main()
                 }
             };
             transport.SendMessage(response);
-        } else if (method == "textDocument/didOpen")
+        }
+        else if (method == "textDocument/didOpen")
         {
-            std::cerr << "[Aleng LSP] File Opened." << std::endl;
             auto params = request["params"]["textDocument"];
-            std::string uri = params["uri"];
-            std::string text = params["text"];
-
-            ValidateTextDocument(transport, uri, text);
-        } else if (method == "textDocument/didChange")
+            ValidateTextDocument(transport, params["uri"], params["text"]);
+        }
+        else if (method == "textDocument/didChange")
         {
             auto params = request["params"];
-            std::string uri = params["textDocument"]["uri"];
-            std::string text = params["contentChanges"][0]["text"];
-
-            ValidateTextDocument(transport, uri, text);
+            ValidateTextDocument(transport, params["textDocument"]["uri"], params["contentChanges"][0]["text"]);
         }
         else if (method == "textDocument/completion") {
             json response;
@@ -113,62 +144,116 @@ int main()
             response["id"] = request["id"];
 
             int line = request["params"]["position"]["line"];
-            line++;
-            auto symbols = g_Analyzer.GetSymbolsAt(line);
+            int character = request["params"]["position"]["character"];
+            std::string uri = request["params"]["textDocument"]["uri"];
 
             json items = json::array();
+            bool handled = false;
 
-            for (const auto& symbol : symbols)
-            {
-                items.push_back({
-                    {"label", symbol.Name},
-                    {"kind", symbol.Kind == "Function" ? 3 : 6},
-                    {"detail", "Defined on line " + std::to_string(symbol.lineDefined)},
-                    {"insertText", symbol.Name}
-                });
+            bool isDotTrigger = false;
+            if (request["params"].contains("context")) {
+                if (auto ctx = request["params"]["context"]; ctx["triggerKind"] == 2 && ctx["triggerCharacter"] == ".") {
+                    isDotTrigger = true;
+                }
             }
 
-            std::vector<std::string> keywords = {
-                "If", "Else", "For", "While", "Fn", "Return", "Break", "Continue", "Import", "True", "False"
-            };
+            if (isDotTrigger && g_DocumentStore.contains(uri)) {
+                std::string lineText = GetLineText(g_DocumentStore[uri], line);
+                std::string varName = GetVariableBeforeDot(lineText, character);
 
-            for (const auto& kw : keywords) {
-                items.push_back({
-                    {"label", kw},
-                    {"kind", 14},
-                    {"detail", "Aleng Keyword"},
-                    {"insertText", kw}
-                });
+                if (auto symbol = g_Analyzer.FindSymbol(varName, line + 1); symbol && symbol->Type.Name == "Map") {
+                    for (const auto& key : symbol->Type.MapKeys) {
+                        items.push_back({
+                            {"label", key},
+                            {"kind", 10}, // 10 = Property
+                            {"detail", "Map Key"},
+                            {"insertText", key}
+                        });
+                    }
+                    handled = true;
+                }
             }
 
-            items.push_back({
-                {"label", "Fn (Snippet)"},
-                {"kind", 15}, // 15 = Snippet
-                {"detail", "Function Definition"},
-                {"insertText", "Fn ${1:name}(${2:args})\n\t$0\nEnd"},
-                {"insertTextFormat", 2}, // 2 = Snippet
-                {"filterText", "Fn"}
-            });
+            if (!handled) {
+                for (auto symbols = g_Analyzer.GetSymbolsAt(line + 1); const auto& symbol : symbols)
+                {
+                    std::string detail = symbol.Kind;
+                    if (symbol.Type.Name != "Unknown") {
+                        detail += ": " + symbol.Type.Name;
+                    }
+                    if (symbol.Type.Name == "Function" && !symbol.Type.Signature.empty()) {
+                        detail = symbol.Type.Signature;
+                    }
 
-            items.push_back({
-                {"label", "For (Range)"},
-                {"kind", 15},
-                {"insertText", "For ${1:i} = ${2:0} .. ${3:10}\n\t$0\nEnd"},
-                {"insertTextFormat", 2},
-                {"filterText", "For"}
-            });
+                    json item = {
+                        {"label", symbol.Name},
+                        {"kind", symbol.Kind == "Function" ? 3 : 6}, // 3=Function, 6=Variable
+                        {"detail", detail},
+                        {"documentation", "Defined on line " + std::to_string(symbol.LineDefined)}
+                    };
 
-            for (std::vector<std::string> builtins = {"Print", "Len", "Append", "Pop", "IsNumber", "IsString"}; const auto& b : builtins) {
+                    if (symbol.Kind == "Function") {
+                        item["insertText"] = symbol.Name + "($0)";
+                        item["insertTextFormat"] = 2;
+                    } else {
+                        item["insertText"] = symbol.Name;
+                    }
+
+                    items.push_back(item);
+                }
+
+                // Keywords
+                std::vector<std::string> keywords = {
+                    "If", "Else", "For", "While", "Fn", "Return", "Break", "Continue", "Import", "True", "False"
+                };
+                for (const auto& kw : keywords) {
+                    items.push_back({
+                        {"label", kw},
+                        {"kind", 14}, // Keyword
+                        {"detail", "Keyword"},
+                        {"insertText", kw}
+                    });
+                }
+
                 items.push_back({
-                    {"label", b},
-                    {"kind", 3}, // 3 = Function
-                    {"detail", "Built-in Function"},
-                    {"insertText", b + "($0)"},
-                    {"insertTextFormat", 2}
+                    {"label", "Fn (Snippet)"},
+                    {"kind", 15},
+                    {"detail", "Function Definition"},
+                    {"insertText", "Fn ${1:name}(${2:args})\n\t$0\nEnd"},
+                    {"insertTextFormat", 2},
+                    {"filterText", "Fn"}
                 });
+                items.push_back({
+                    {"label", "For (Range)"},
+                    {"kind", 15},
+                    {"insertText", "For ${1:i} = ${2:0} .. ${3:10}\n\t$0\nEnd"},
+                    {"insertTextFormat", 2},
+                    {"filterText", "For"}
+                });
+
+                for (std::vector<std::string> builtins = {"Print", "Len", "Append", "Pop", "IsNumber", "IsString"}; const auto& b : builtins) {
+                    items.push_back({
+                        {"label", b},
+                        {"kind", 3},
+                        {"detail", "Built-in Function"},
+                        {"insertText", b + "($0)"},
+                        {"insertTextFormat", 2}
+                    });
+                }
             }
 
             response["result"] = items;
+            transport.SendMessage(response);
+        }
+        else if (method == "textDocument/semanticTokens/full") {
+            json response;
+            response["jsonrpc"] = "2.0";
+            response["id"] = request["id"];
+
+            response["result"] = {
+                {"data", g_Analyzer.GetSemanticTokens()}
+            };
+
             transport.SendMessage(response);
         }
         else if (method == "exit")

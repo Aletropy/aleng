@@ -57,6 +57,17 @@ endif ()
 
 add_dependencies(AlengCore GenerateStdLib)
 
+include(FetchContent)
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz)
+FetchContent_MakeAvailable(json)
+
+add_library(AlengAnalysis STATIC
+        src/Apps/LSP/Analyzer.cpp
+        src/Apps/LSP/Analyzer.h
+)
+target_link_libraries(AlengAnalysis PUBLIC AlengCore nlohmann_json::nlohmann_json)
+target_include_directories(AlengAnalysis PUBLIC src/Apps/LSP)
+
 if (EMSCRIPTEN)
     message(STATUS "Building for WebAssembly (Emscripten)...")
 
@@ -64,7 +75,7 @@ if (EMSCRIPTEN)
             src/Apps/Wasm/Bindings.cpp
     )
 
-    target_link_libraries(AlengWasm PRIVATE AlengCore)
+    target_link_libraries(AlengWasm PRIVATE AlengCore AlengAnalysis nlohmann_json::nlohmann_json)
 
     target_compile_options(AlengWasm PRIVATE "-fexceptions" "-frtti")
 
@@ -80,6 +91,7 @@ if (EMSCRIPTEN)
             "-sNO_EXIT_RUNTIME=1"
             "-sSTACK_SIZE=5MB"
             "-sDISABLE_EXCEPTION_CATCHING=0"
+            "-sEXPORTED_RUNTIME_METHODS=['FS']"
     )
 
     set_target_properties(AlengWasm PROPERTIES SUFFIX ".js")
@@ -100,9 +112,7 @@ if (NOT EMSCRIPTEN)
             src/Apps/LSP/main.cpp
             src/Apps/LSP/LSPTransport.h
             src/Apps/LSP/LSPTransport.cpp
-            src/Apps/LSP/Analyzer.cpp
-            src/Apps/LSP/Analyzer.h
     )
 
-    target_link_libraries(AlengLSP PRIVATE AlengCore nlohmann_json::nlohmann_json)
+    target_link_libraries(AlengLSP PRIVATE AlengCore AlengAnalysis nlohmann_json::nlohmann_json)
 endif()

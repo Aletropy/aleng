@@ -2,6 +2,9 @@
 #include "Parser.h"
 #include "Error.h"
 
+// Internal exception used only for control flow during parsing errors
+struct ParserSyncException final : std::exception{};
+
 namespace Aleng
 {
     Parser::Parser(const std::string &input, std::string filepath)
@@ -17,7 +20,15 @@ namespace Aleng
 
         while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END_OF_FILE)
         {
-            program->Statements.push_back(Statement());
+            try
+            {
+                if (NodePtr stmt = Statement())
+                    program->Statements.push_back(std::move(stmt));
+            }
+            catch (const ParserSyncException&)
+            {
+                Synchronize();
+            }
         }
 
         return program;
@@ -25,6 +36,8 @@ namespace Aleng
 
     NodePtr Parser::Statement()
     {
+        if (m_Index >= m_Tokens.size()) return nullptr; // Safety check
+
         auto token = m_Tokens[m_Index];
 
         if (token.Type == TokenType::IF)
@@ -39,8 +52,14 @@ namespace Aleng
         {
             m_Index++;
             NodePtr returnValue = nullptr;
-            // TODO: Return without a value
-            returnValue = Expression();
+            // Try to parse an expression if one exists
+            if (m_Index < m_Tokens.size() &&
+                m_Tokens[m_Index].Type != TokenType::END &&
+                m_Tokens[m_Index].Type != TokenType::ELSE &&
+                m_Tokens[m_Index].Type != TokenType::SEMICOLON)
+            {
+                 returnValue = Expression();
+            }
             return std::make_unique<ReturnNode>(std::move(returnValue), token.Location);
         }
         else if (token.Type == TokenType::BREAK)
@@ -65,6 +84,12 @@ namespace Aleng
 
         auto condition = Expression();
 
+        if (m_Index >= m_Tokens.size())
+        {
+             ReportError("Unexpected end of file inside 'If' condition.", startToken.Location);
+             throw ParserSyncException();
+        }
+
         auto thenBlockStartLoc = m_Tokens[m_Index].Location;
         std::vector<NodePtr> thenStatements;
 
@@ -73,7 +98,12 @@ namespace Aleng
                m_Tokens[m_Index].Type != TokenType::END &&
                m_Tokens[m_Index].Type != TokenType::END_OF_FILE)
         {
-            thenStatements.push_back(Statement());
+            try {
+                if (auto stmt = Statement())
+                    thenStatements.push_back(std::move(stmt));
+            } catch (const ParserSyncException&) {
+                Synchronize();
+            }
         }
 
         NodePtr thenBranch = std::make_unique<BlockNode>(std::move(thenStatements), thenBlockStartLoc);
@@ -82,13 +112,18 @@ namespace Aleng
         if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::ELSE)
         {
             m_Index++;
-            auto elseBlockStartLoc = m_Tokens[m_Index].Location;
+            auto elseBlockStartLoc = m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : thenBlockStartLoc;
             std::vector<NodePtr> elseStatements;
             while (m_Index < m_Tokens.size() &&
                    m_Tokens[m_Index].Type != TokenType::END &&
                    m_Tokens[m_Index].Type != TokenType::END_OF_FILE)
             {
-                elseStatements.push_back(Statement());
+                try {
+                    if (auto stmt = Statement())
+                        elseStatements.push_back(std::move(stmt));
+                } catch (const ParserSyncException&) {
+                    Synchronize();
+                }
             }
             elseBranch = std::make_unique<BlockNode>(std::move(elseStatements), elseBlockStartLoc);
         }
@@ -96,7 +131,10 @@ namespace Aleng
         if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::END)
             m_Index++;
         else
-            throw AlengError("Expected 'end' to close 'if' statement.", m_Tokens[m_Index].Location);
+        {
+            ReportError("Expected 'End' keyword to close 'If' statement.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+            throw ParserSyncException();
+        }
 
         return std::make_unique<IfNode>(
             std::move(condition), std::move(thenBranch), std::move(elseBranch), startToken.Location);
@@ -107,14 +145,20 @@ namespace Aleng
         Token startToken = m_Tokens[m_Index];
         m_Index++;
 
-        if (m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
-            throw AlengError("Expected iterator variable name after 'For'.", m_Tokens[m_Index].Location);
+        if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
+        {
+            ReportError("Expected iterator variable name after 'For'.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+            throw ParserSyncException();
+        }
 
         std::string iteratorVarName = m_Tokens[m_Index].Value;
         m_Index++;
 
         if (m_Index >= m_Tokens.size())
-            throw AlengError("Unexpected end of input after For <iterator>.", m_Tokens[m_Index].Location);
+        {
+            ReportError("Unexpected end of input after For <iterator>.", m_Tokens[m_Index - 1].Location);
+            throw ParserSyncException();
+        }
 
         NodePtr body;
         auto bodyStartLoc = m_Tokens[m_Index].Location;
@@ -129,33 +173,45 @@ namespace Aleng
             NodePtr endExpr;
             NodePtr stepExpr = nullptr;
 
-            if (m_Tokens[m_Index].Type == TokenType::RANGE)
+            if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::RANGE)
             {
                 m_Index++;
                 isUntil = false;
             }
-            else if (m_Tokens[m_Index].Type == TokenType::UNTIL)
+            else if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::UNTIL)
             {
                 m_Index++;
                 isUntil = true;
             }
             else
             {
-                throw AlengError("Expected '..' or 'until' in For loop range.", m_Tokens[m_Index].Location);
+                ReportError("Expected '..' or 'until' in numeric For loop range.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : bodyStartLoc);
+                throw ParserSyncException();
             }
 
             endExpr = Expression();
 
-            if (m_Tokens[m_Index].Type == TokenType::STEP)
+            if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::STEP)
             {
                 m_Index++;
                 stepExpr = Expression();
             }
 
             while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END)
-                bodyStatements.push_back(Statement());
-            if (m_Tokens[m_Index].Type != TokenType::END)
-                throw AlengError("Expected 'End' to close 'For' statement.", m_Tokens[m_Index].Location);
+            {
+                try {
+                    if (auto stmt = Statement())
+                        bodyStatements.push_back(std::move(stmt));
+                } catch (const ParserSyncException&) {
+                    Synchronize();
+                }
+            }
+
+            if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::END)
+            {
+                ReportError("Expected 'End' to close 'For' statement.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+                throw ParserSyncException();
+            }
 
             m_Index++;
             body = std::make_unique<BlockNode>(std::move(bodyStatements), bodyStartLoc);
@@ -163,15 +219,26 @@ namespace Aleng
             ForNumericRange numericInfo = {iteratorVarName, std::move(startExpr), std::move(endExpr), std::move(stepExpr), isUntil};
             return std::make_unique<ForStatementNode>(numericInfo, std::move(body), startToken.Location);
         }
-        if (m_Tokens[m_Index].Type == TokenType::IN)
+        else if (m_Tokens[m_Index].Type == TokenType::IN)
         {
             m_Index++;
             NodePtr collectionExpr = Expression();
 
             while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END)
-                bodyStatements.push_back(Statement());
-            if (m_Tokens[m_Index].Type != TokenType::END)
-                throw AlengError("Expected 'End' to close 'For' statement.", m_Tokens[m_Index].Location);
+            {
+                try {
+                    if (auto stmt = Statement())
+                        bodyStatements.push_back(std::move(stmt));
+                } catch (const ParserSyncException&) {
+                    Synchronize();
+                }
+            }
+
+            if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::END)
+            {
+                ReportError("Expected 'End' to close 'For' statement.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+                throw ParserSyncException();
+            }
 
             body = std::make_unique<BlockNode>(std::move(bodyStatements), bodyStartLoc);
             m_Index++;
@@ -180,7 +247,8 @@ namespace Aleng
             return std::make_unique<ForStatementNode>(collectionInfo, std::move(body), startToken.Location);
         }
 
-        throw AlengError("Expected '=' or 'in' after iterator variable in For loop.", m_Tokens[m_Index].Location);
+        ReportError("Expected '=' (for range) or 'in' (for collection) after iterator variable in For loop.", m_Tokens[m_Index].Location);
+        throw ParserSyncException();
     }
 
     NodePtr Parser::ParseWhileStatement()
@@ -189,16 +257,37 @@ namespace Aleng
         m_Index++;
 
         if (m_Index >= m_Tokens.size())
-            throw AlengError("Unexpected end of input after While <condition>.", startToken.Location);
+        {
+            ReportError("Unexpected end of input after While keyword.", startToken.Location);
+            throw ParserSyncException();
+        }
+
+        NodePtr condition = Expression();
+
+        if (m_Index >= m_Tokens.size())
+        {
+             ReportError("Unexpected end of input in While loop.", startToken.Location);
+             throw ParserSyncException();
+        }
 
         auto bodyStartToken = m_Tokens[m_Index];
         std::vector<NodePtr> bodyStatements;
-        NodePtr condition = Expression();
 
         while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END)
-            bodyStatements.push_back(Statement());
-        if (m_Tokens[m_Index].Type != TokenType::END)
-            throw AlengError("Expected 'End' to close 'While' statement.", m_Tokens[m_Index].Location);
+        {
+            try {
+                if (auto stmt = Statement())
+                    bodyStatements.push_back(std::move(stmt));
+            } catch (const ParserSyncException&) {
+                Synchronize();
+            }
+        }
+
+        if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::END)
+        {
+            ReportError("Expected 'End' to close 'While' statement.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+            throw ParserSyncException();
+        }
 
         m_Index++;
         NodePtr body = std::make_unique<BlockNode>(std::move(bodyStatements), bodyStartToken.Location);
@@ -215,13 +304,19 @@ namespace Aleng
         m_Index++;
 
         if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
-            throw AlengError("Expected function name", m_Tokens[m_Index].Location);
+        {
+            ReportError("Expected function name after 'Fn'.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+            throw ParserSyncException();
+        }
 
         std::string funcName = m_Tokens[m_Index].Value;
 
         m_Index++;
         if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::LPAREN)
-            throw AlengError("Expected '(' after function name", m_Tokens[m_Index - 1].Location);
+        {
+            ReportError("Expected '(' after function name.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+            throw ParserSyncException();
+        }
         m_Index ++;
 
         std::vector<Parameter> params;
@@ -231,21 +326,25 @@ namespace Aleng
         {
             if (processedVariadic)
             {
-                throw AlengError("Variadic parameters must be the last parameters in a function definition.", m_Tokens[m_Index].Location);
-                break;
-            }
-
-            if (expectComma && m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::COMMA && m_Tokens[m_Index].Type != TokenType::RPAREN)
-            {
-                throw AlengError("Expected ',' between parameters or ')'", m_Tokens[m_Index].Location);
-                m_Index++;
+                ReportError("Variadic parameters must be the last parameters in a function definition.", m_Tokens[m_Index].Location);
+                throw ParserSyncException();
             }
 
             if (expectComma)
-                m_Index++;
+            {
+                if (m_Tokens[m_Index].Type != TokenType::COMMA && m_Tokens[m_Index].Type != TokenType::RPAREN)
+                {
+                    ReportError("Expected ',' between parameters or ')' to close parameter list.", m_Tokens[m_Index].Location);
+                    throw ParserSyncException();
+                }
+                if (m_Tokens[m_Index].Type == TokenType::COMMA)
+                    m_Index++;
+            }
+
+            if (m_Index >= m_Tokens.size()) break; // Safety
 
             bool isVariadic = false;
-            if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::DOLLAR)
+            if (m_Tokens[m_Index].Type == TokenType::DOLLAR)
             {
                 m_Index++;
                 isVariadic = true;
@@ -253,7 +352,10 @@ namespace Aleng
             }
 
             if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
-                throw AlengError("Expected parameter name", m_Tokens[m_Index].Location);
+            {
+                ReportError("Expected parameter name.", m_Tokens[m_Index].Location);
+                throw ParserSyncException();
+            }
 
             auto paramToken = m_Tokens[m_Index];
             std::string paramName = paramToken.Value;
@@ -263,11 +365,14 @@ namespace Aleng
 
             if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::COLON)
             {
-                if (Peek().Type != TokenType::IDENTIFIER)
-                    throw AlengError("Expected type name after ':'", m_Tokens[m_Index].Location);
-                m_Index++;
-                auto typeNameToken = m_Tokens[m_Index];
-                typeName = typeNameToken.Value;
+                m_Index++; // Consume ':'
+                if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
+                {
+                    ReportError("Expected type name after ':'.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : paramToken.Location);
+                    throw ParserSyncException();
+                }
+
+                typeName = m_Tokens[m_Index].Value;
                 m_Index++;
             }
 
@@ -275,12 +380,28 @@ namespace Aleng
             expectComma = true;
         }
 
-        m_Index++;
+        if (m_Index >= m_Tokens.size()) {
+             ReportError("Unexpected end of input in function definition.", startToken.Location);
+             throw ParserSyncException();
+        }
+        m_Index++; // Consume ')'
+
         auto bodyStartLoc = m_Tokens[m_Index].Location;
         std::vector<NodePtr> bodyStatements;
         while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END && m_Tokens[m_Index].Type != TokenType::END_OF_FILE)
         {
-            bodyStatements.push_back(Statement());
+            try {
+                if (auto stmt = Statement())
+                    bodyStatements.push_back(std::move(stmt));
+            } catch (const ParserSyncException&) {
+                Synchronize();
+            }
+        }
+
+        if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::END)
+        {
+             ReportError("Expected 'End' to close function definition.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+             throw ParserSyncException();
         }
 
         NodePtr body = std::make_unique<BlockNode>(std::move(bodyStatements), bodyStartLoc);
@@ -295,7 +416,10 @@ namespace Aleng
         m_Index++;
 
         if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::LPAREN)
-            throw AlengError("Expected '(' after Fn for a anonymous function.", startToken.Location);
+        {
+            ReportError("Expected '(' for anonymous function declaration or 'name' for default function declaration.", startToken.Location);
+            throw ParserSyncException();
+        }
         m_Index++;
 
         std::vector<Parameter> params;
@@ -303,16 +427,21 @@ namespace Aleng
         bool processedVariadic = false;
         while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::RPAREN)
         {
-            if (processedVariadic)
+            // Parameter logic from ParseFunctionDefinition
+             if (processedVariadic)
             {
-                throw AlengError("Variadic parameters must be the last parameters in a function definition.", m_Tokens[m_Index].Location);
-                break;
+                ReportError("Variadic parameters must be the last parameters.", m_Tokens[m_Index].Location);
+                throw ParserSyncException();
             }
 
-            if (expectComma && m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::COMMA && m_Tokens[m_Index].Type != TokenType::RPAREN)
+            if (expectComma)
             {
-                throw AlengError("Expected ',' between parameters or ')'", m_Tokens[m_Index].Location);
-                m_Index++;
+                if (m_Tokens[m_Index].Type != TokenType::COMMA && m_Tokens[m_Index].Type != TokenType::RPAREN)
+                {
+                    ReportError("Expected ',' or ')'", m_Tokens[m_Index].Location);
+                    throw ParserSyncException();
+                }
+                if(m_Tokens[m_Index].Type == TokenType::COMMA) m_Index++;
             }
 
             if (expectComma)
@@ -327,7 +456,10 @@ namespace Aleng
             }
 
             if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
-                throw AlengError("Expected parameter name", m_Tokens[m_Index].Location);
+            {
+                ReportError("Expected parameter name.", m_Tokens[m_Index].Location);
+                throw ParserSyncException();
+            }
 
             auto paramToken = m_Tokens[m_Index];
             std::string paramName = paramToken.Value;
@@ -337,28 +469,43 @@ namespace Aleng
 
             if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::COLON)
             {
-                if (Peek().Type != TokenType::IDENTIFIER)
-                    throw AlengError("Expected type name after ':'", m_Tokens[m_Index].Location);
                 m_Index++;
-                auto typeNameToken = m_Tokens[m_Index];
-                typeName = typeNameToken.Value;
+                if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
+                {
+                    ReportError("Expected type name after ':'.", m_Tokens[m_Index].Location);
+                    throw ParserSyncException();
+                }
+                typeName = m_Tokens[m_Index].Value;
                 m_Index++;
             }
 
             params.emplace_back(paramName, typeName, isVariadic);
             expectComma = true;
         }
-        m_Index++;
+
+        if (m_Index >= m_Tokens.size()) {
+             ReportError("Unexpected end of input.", startToken.Location);
+             throw ParserSyncException();
+        }
+        m_Index++; // Consume ')'
 
         auto bodyStartLoc = m_Tokens[m_Index].Location;
         std::vector<NodePtr> bodyStatements;
         while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END)
         {
-            bodyStatements.push_back(Statement());
+            try {
+                if (auto stmt = Statement())
+                    bodyStatements.push_back(std::move(stmt));
+            } catch (const ParserSyncException&) {
+                Synchronize();
+            }
         }
 
         if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::END)
-            throw AlengError("Expected 'End' to close anonymous function.", m_Tokens[m_Index-1].Location);
+        {
+            ReportError("Expected 'End' to close anonymous function.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+            throw ParserSyncException();
+        }
 
         NodePtr body = std::make_unique<BlockNode>(std::move(bodyStatements), bodyStartLoc);
         m_Index++;
@@ -370,12 +517,19 @@ namespace Aleng
     {
         std::vector<NodePtr> statements;
         while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END && m_Tokens[m_Index].Type != TokenType::END_OF_FILE)
-            statements.push_back(Statement());
+        {
+             try {
+                if (auto stmt = Statement())
+                    statements.push_back(std::move(stmt));
+            } catch (const ParserSyncException&) {
+                Synchronize();
+            }
+        }
 
         if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::END)
             m_Index++;
 
-        return std::make_unique<BlockNode>(std::move(statements), m_Tokens[m_Index].Location);
+        return std::make_unique<BlockNode>(std::move(statements), m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : TokenLocation{});
     }
 
     NodePtr Parser::ParseListLiteral()
@@ -384,25 +538,31 @@ namespace Aleng
         std::vector<NodePtr> elements;
         bool expectComma = false;
 
-        if (m_Tokens[m_Index].Type != TokenType::RBRACE)
+        if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::RBRACE)
         {
             do
             {
                 if (expectComma)
                 {
                     if (m_Tokens[m_Index].Type != TokenType::COMMA)
-                        throw AlengError("Expected ',' or ']' in list literal.", m_Tokens[m_Index].Location);
+                    {
+                        ReportError("Expected ',' or ']' in list literal.", m_Tokens[m_Index].Location);
+                        throw ParserSyncException();
+                    }
                     m_Index++;
                 }
                 elements.push_back(Expression());
                 expectComma = true;
-            } while (m_Tokens[m_Index].Type == TokenType::COMMA);
+            } while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::COMMA);
         }
 
-        if (m_Tokens[m_Index].Type != TokenType::RBRACE)
-            throw AlengError("Expected ']' to close list literal", m_Tokens[m_Index].Location);
+        if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::RBRACE)
+        {
+            ReportError("Expected ']' to close list literal.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : TokenLocation{});
+            throw ParserSyncException();
+        }
         m_Index++;
-        return std::make_unique<ListNode>(std::move(elements), m_Tokens[m_Index].Location);
+        return std::make_unique<ListNode>(std::move(elements), m_Tokens[m_Index-1].Location);
     }
 
     NodePtr Parser::ParseMapLiteral()
@@ -413,21 +573,27 @@ namespace Aleng
         std::vector<std::pair<NodePtr, NodePtr>> elements;
         bool expectComma = false;
 
-        if (m_Tokens[m_Index].Type != TokenType::RCURLY)
+        if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::RCURLY)
         {
             do
             {
                 if (expectComma)
                 {
                     if (m_Tokens[m_Index].Type != TokenType::COMMA)
-                        throw AlengError("Expected ',' or '}' in map literal.", m_Tokens[m_Index].Location);
+                    {
+                        ReportError("Expected ',' or '}' in map literal.", m_Tokens[m_Index].Location);
+                        throw ParserSyncException();
+                    }
                     m_Index++;
                 }
 
                 NodePtr keyExpr = Expression();
 
-                if (m_Tokens[m_Index].Type != TokenType::COLON)
-                    throw AlengError("Expected ':' to assign value to key in map literal.", m_Tokens[m_Index].Location);
+                if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::COLON)
+                {
+                    ReportError("Expected ':' to assign value to key in map literal.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+                    throw ParserSyncException();
+                }
 
                 m_Index++;
 
@@ -435,10 +601,13 @@ namespace Aleng
 
                 elements.emplace_back(std::move(keyExpr), std::move(valueExpr));
                 expectComma = true;
-            } while (m_Tokens[m_Index].Type == TokenType::COMMA);
+            } while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::COMMA);
 
-            if (m_Tokens[m_Index].Type != TokenType::RCURLY)
-                throw AlengError("Expected '}' to close map literal.", m_Tokens[m_Index].Location);
+            if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::RCURLY)
+            {
+                ReportError("Expected '}' to close map literal.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+                throw ParserSyncException();
+            }
         }
         m_Index++;
         return std::make_unique<MapNode>(std::move(elements), startToken.Location);
@@ -453,7 +622,10 @@ namespace Aleng
             if (
                 !dynamic_cast<IdentifierNode *>(left.get()) && !dynamic_cast<ListAccessNode *>(left.get()) &&
                 !dynamic_cast<MemberAccessNode*>(left.get()))
-                throw AlengError("Invalid left-hand side in assignment expression.", m_Tokens[m_Index].Location);
+            {
+                ReportError("Invalid left-hand side in assignment expression.", m_Tokens[m_Index].Location);
+                throw ParserSyncException();
+            }
 
             m_Index++;
             NodePtr right = Statement();
@@ -558,7 +730,7 @@ namespace Aleng
 
     NodePtr Parser::UnaryExpression()
     {
-        if (m_Tokens[m_Index].Type == TokenType::NOT || m_Tokens[m_Index].Type == TokenType::MINUS)
+        if (m_Index < m_Tokens.size() && (m_Tokens[m_Index].Type == TokenType::NOT || m_Tokens[m_Index].Type == TokenType::MINUS))
         {
             auto op = m_Tokens[m_Index];
             m_Index++;
@@ -578,6 +750,11 @@ namespace Aleng
 
     NodePtr Parser::Factor()
     {
+        if (m_Index >= m_Tokens.size()) {
+             ReportError("Unexpected end of expression.", m_Index > 0 ? m_Tokens[m_Index-1].Location : TokenLocation{});
+             throw ParserSyncException();
+        }
+
         auto token = m_Tokens[m_Index];
         NodePtr primaryExpr = nullptr;
 
@@ -614,7 +791,10 @@ namespace Aleng
             m_Index++;
             auto expr = Expression();
             if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::RPAREN)
-                throw AlengError("Expected ')'", token.Location);
+            {
+                ReportError("Expected ')' after expression.", token.Location);
+                throw ParserSyncException();
+            }
             m_Index++;
             primaryExpr = std::move(expr);
         }
@@ -644,10 +824,14 @@ namespace Aleng
                 auto pathStr = m_Tokens[m_Index++].Value;
                 return std::make_unique<ImportModuleNode>(pathStr, token.Location);
             }
-            throw AlengError("Expected module name after 'module' keyword.", token.Location);
+            ReportError("Expected module name string after 'Import'.", token.Location);
+            throw ParserSyncException();
         }
         else
-            throw AlengError("Unexpected token: " + token.Value, token.Location);
+        {
+            ReportError("Unexpected token: " + token.Value, token.Location);
+            throw ParserSyncException();
+        }
 
         while (m_Index < m_Tokens.size())
         {
@@ -660,7 +844,10 @@ namespace Aleng
                 do
                 {
                     if (expectCommaArgs && m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::COMMA)
-                        throw AlengError("Expected ',' between function arguments", token.Location);
+                    {
+                        ReportError("Expected ',' between function arguments.", token.Location);
+                        throw ParserSyncException();
+                    }
                     if (expectCommaArgs)
                         m_Index++;
                     if (m_Tokens[m_Index].Type != TokenType::RPAREN)
@@ -669,7 +856,10 @@ namespace Aleng
                 } while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::COMMA);
 
                 if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::RPAREN)
-                    throw AlengError("Expected ')' after function arguments.", token.Location);
+                {
+                    ReportError("Expected ')' after function arguments.", token.Location);
+                    throw ParserSyncException();
+                }
 
                 m_Index++;
 
@@ -680,7 +870,10 @@ namespace Aleng
                 m_Index++;
                 auto indexExpr = Expression();
                 if (m_Tokens[m_Index].Type != TokenType::RBRACE)
-                    throw AlengError("Expected ']' after index expression.", token.Location);
+                {
+                    ReportError("Expected ']' after list/map index expression.", token.Location);
+                    throw ParserSyncException();
+                }
                 m_Index++;
                 primaryExpr = std::make_unique<ListAccessNode>(std::move(primaryExpr), std::move(indexExpr), token.Location);
             }
@@ -690,7 +883,10 @@ namespace Aleng
                 m_Index++;
 
                 if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
-                    throw AlengError("Expected member name after '.'", token.Location);
+                {
+                    ReportError("Expected member name after '.'", token.Location);
+                    throw ParserSyncException();
+                }
 
                 Token memberToken = m_Tokens[m_Index];
                 m_Index++;
@@ -709,5 +905,34 @@ namespace Aleng
         if (m_Index + 1 < m_Tokens.size())
             return m_Tokens[m_Index + 1];
         return {TokenType::END_OF_FILE, "", m_Tokens[m_Index].Location};
+    }
+
+    void Parser::ReportError(const std::string &msg, TokenLocation loc)
+    {
+        m_Errors.emplace_back(msg, loc);
+    }
+
+    void Parser::Synchronize()
+    {
+        m_Index++;
+
+        while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END_OF_FILE)
+        {
+            switch (m_Tokens[m_Index].Type)
+            {
+                case TokenType::FUNCTION:
+                case TokenType::IF:
+                case TokenType::FOR:
+                case TokenType::WHILE:
+                case TokenType::RETURN:
+                case TokenType::BREAK:
+                case TokenType::CONTINUE:
+                case TokenType::END:
+                case TokenType::ELSE:
+                    return;
+                default:
+                    m_Index++;
+            }
+        }
     }
 }

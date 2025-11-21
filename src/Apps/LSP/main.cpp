@@ -4,36 +4,38 @@
 
 using namespace AlengLSP;
 
-void ValidateTextDocument(LSPTransport& transport, const std::string& fileUri, const std::string& code) {
+void ValidateTextDocument(LSPTransport &transport, const std::string &fileUri, const std::string &code)
+{
     json diagnostics = json::array();
 
-    try {
+    try
+    {
         Aleng::Parser parser(code, fileUri);
         parser.ParseProgram();
-    }
-    catch (const Aleng::AlengError& err) {
-        const auto loc = err.GetLocation();
 
-        int line = std::max(0, loc.Line - 1);
-        int col = std::max(0, loc.Column - 1);
+        for (const auto &err: parser.GetErrors())
+        {
+            const auto loc = err.GetLocation();
+            int line = std::max(0, loc.Line - 1);
+            int col = std::max(0, loc.Column - 1);
 
-        json diag;
-        diag["range"] = {
-            {"start", {{"line", line}, {"character", col}}},
-            {"end",   {{"line", line}, {"character", col + 1000}}}
-        };
+            json diag;
+            diag["range"] = {
+                {"start", {{"line", line}, {"character", col}}},
+                {"end", {{"line", line}, {"character", col + 5}}}
+            };
+            diag["severity"] = 1; // Error
+            diag["source"] = "Aleng Parser";
+            diag["message"] = err.what();
 
-        diag["severity"] = 1;
-        diag["source"] = "Aleng Compiler";
-        diag["message"] = err.what();
-
-        diagnostics.push_back(diag);
-    }
-    catch (const std::exception& e) {
+            diagnostics.push_back(diag);
+        }
+    } catch (const std::exception &e)
+    {
         json diag;
         diag["range"] = {{"start", {{"line", 0}, {"character", 0}}}, {"end", {{"line", 0}, {"character", 1}}}};
         diag["severity"] = 1;
-        diag["message"] = std::string("Compiler Crash: ") + e.what();
+        diag["message"] = std::string("Compiler Fatal Error: ") + e.what();
         diagnostics.push_back(diag);
     }
 
@@ -48,49 +50,55 @@ void ValidateTextDocument(LSPTransport& transport, const std::string& fileUri, c
     transport.SendMessage(notification);
 }
 
-int main() {
+int main()
+{
     LSPTransport transport;
     json request;
 
     std::cerr << "[Aleng LSP] Server Started." << std::endl;
 
-    while (transport.ReadMessage(request)) {
+    while (transport.ReadMessage(request))
+    {
         if (!request.contains("method")) continue;
 
         std::string method = request["method"];
 
-        if (method == "initialize") {
+        if (method == "initialize")
+        {
             json response;
             response["jsonrpc"] = "2.0";
             response["id"] = request["id"];
             response["result"] = {
-                {"capabilities", {
+                {
+                    "capabilities", {
                         {"textDocumentSync", 1}
-                }},
-                {"serverInfo", {
+                    }
+                },
+                {
+                    "serverInfo", {
                         {"name", "Aleng Language Server"},
                         {"version", "0.1.0"}
-                }}
+                    }
+                }
             };
             transport.SendMessage(response);
-        }
-        else if (method == "textDocument/didOpen") {
+        } else if (method == "textDocument/didOpen")
+        {
             std::cerr << "[Aleng LSP] File Opened." << std::endl;
             auto params = request["params"]["textDocument"];
             std::string uri = params["uri"];
             std::string text = params["text"];
 
             ValidateTextDocument(transport, uri, text);
-        }
-        else if (method == "textDocument/didChange") {
-            std::cerr << "[Aleng LSP] File Changed." << std::endl;
+        } else if (method == "textDocument/didChange")
+        {
             auto params = request["params"];
             std::string uri = params["textDocument"]["uri"];
             std::string text = params["contentChanges"][0]["text"];
 
             ValidateTextDocument(transport, uri, text);
-        }
-        else if (method == "exit") {
+        } else if (method == "exit")
+        {
             break;
         }
     }

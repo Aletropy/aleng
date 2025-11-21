@@ -1,7 +1,0 @@
-Fn __create_logger__(name : String)
-    Return {
-        "name": name
-    }
-End
-
-Create = __create_logger__

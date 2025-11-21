@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AST.h"
+#include "Error.h"
 #include "Lexer.h"
 
 namespace Aleng
@@ -8,8 +9,11 @@ namespace Aleng
     class Parser
     {
     public:
-        Parser(const std::string &input, std::string filepath = "unknown");
+        explicit Parser(const std::string &input, std::string filepath = "unknown");
         std::unique_ptr<ProgramNode> ParseProgram();
+
+        [[nodiscard]] const std::vector<AlengError>& GetErrors() const { return m_Errors; }
+        [[nodiscard]] bool HasErrors() const { return !m_Errors.empty(); }
 
     private:
         NodePtr Statement();
@@ -33,9 +37,12 @@ namespace Aleng
         NodePtr Factor();
 
         Token Peek();
+        void ReportError(const std::string& msg, TokenLocation loc);
+        void Synchronize();
 
     private:
         int m_Index = 0;
         std::vector<Token> m_Tokens;
+        std::vector<AlengError> m_Errors;
     };
 }

@@ -1,8 +1,11 @@
+#include "Analyzer.h"
 #include "LSPTransport.h"
 #include "Core/Parser.h"
 #include "Core/Error.h"
 
 using namespace AlengLSP;
+
+static Analyzer g_Analyzer;
 
 void ValidateTextDocument(LSPTransport &transport, const std::string &fileUri, const std::string &code)
 {
@@ -11,7 +14,9 @@ void ValidateTextDocument(LSPTransport &transport, const std::string &fileUri, c
     try
     {
         Aleng::Parser parser(code, fileUri);
-        parser.ParseProgram();
+        const auto program = parser.ParseProgram();
+
+        g_Analyzer.Analyze(*program);
 
         for (const auto &err: parser.GetErrors())
         {
@@ -71,7 +76,11 @@ int main()
             response["result"] = {
                 {
                     "capabilities", {
-                        {"textDocumentSync", 1}
+                        {"textDocumentSync", 1},
+                        {"completionProvider", {
+                            {"resolveProvider", false},
+                            {"triggerCharacters", { "." }}
+                        }}
                     }
                 },
                 {
@@ -97,7 +106,72 @@ int main()
             std::string text = params["contentChanges"][0]["text"];
 
             ValidateTextDocument(transport, uri, text);
-        } else if (method == "exit")
+        }
+        else if (method == "textDocument/completion") {
+            json response;
+            response["jsonrpc"] = "2.0";
+            response["id"] = request["id"];
+
+            int line = request["params"]["position"]["line"];
+            line++;
+            auto symbols = g_Analyzer.GetSymbolsAt(line);
+
+            json items = json::array();
+
+            for (const auto& symbol : symbols)
+            {
+                items.push_back({
+                    {"label", symbol.Name},
+                    {"kind", symbol.Kind == "Function" ? 3 : 6},
+                    {"detail", "Defined on line " + std::to_string(symbol.lineDefined)},
+                    {"insertText", symbol.Name}
+                });
+            }
+
+            std::vector<std::string> keywords = {
+                "If", "Else", "For", "While", "Fn", "Return", "Break", "Continue", "Import", "True", "False"
+            };
+
+            for (const auto& kw : keywords) {
+                items.push_back({
+                    {"label", kw},
+                    {"kind", 14},
+                    {"detail", "Aleng Keyword"},
+                    {"insertText", kw}
+                });
+            }
+
+            items.push_back({
+                {"label", "Fn (Snippet)"},
+                {"kind", 15}, // 15 = Snippet
+                {"detail", "Function Definition"},
+                {"insertText", "Fn ${1:name}(${2:args})\n\t$0\nEnd"},
+                {"insertTextFormat", 2}, // 2 = Snippet
+                {"filterText", "Fn"}
+            });
+
+            items.push_back({
+                {"label", "For (Range)"},
+                {"kind", 15},
+                {"insertText", "For ${1:i} = ${2:0} .. ${3:10}\n\t$0\nEnd"},
+                {"insertTextFormat", 2},
+                {"filterText", "For"}
+            });
+
+            for (std::vector<std::string> builtins = {"Print", "Len", "Append", "Pop", "IsNumber", "IsString"}; const auto& b : builtins) {
+                items.push_back({
+                    {"label", b},
+                    {"kind", 3}, // 3 = Function
+                    {"detail", "Built-in Function"},
+                    {"insertText", b + "($0)"},
+                    {"insertTextFormat", 2}
+                });
+            }
+
+            response["result"] = items;
+            transport.SendMessage(response);
+        }
+        else if (method == "exit")
         {
             break;
         }

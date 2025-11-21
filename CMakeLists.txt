@@ -100,6 +100,8 @@ if (NOT EMSCRIPTEN)
             src/Apps/LSP/main.cpp
             src/Apps/LSP/LSPTransport.h
             src/Apps/LSP/LSPTransport.cpp
+            src/Apps/LSP/Analyzer.cpp
+            src/Apps/LSP/Analyzer.h
     )
 
     target_link_libraries(AlengLSP PRIVATE AlengCore nlohmann_json::nlohmann_json)

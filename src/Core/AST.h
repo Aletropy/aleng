@@ -69,7 +69,7 @@ namespace Aleng
 
     struct ASTNode
     {
-        TokenLocation Location;
+        SourceRange Location;
 
         ASTNode() = default;
         virtual ~ASTNode() = default;
@@ -130,7 +130,7 @@ namespace Aleng
     struct BlockNode : ASTNode
     {
         std::vector<NodePtr> Statements;
-        BlockNode(std::vector<NodePtr> stmts, TokenLocation loc)
+        BlockNode(std::vector<NodePtr> stmts, SourceRange loc)
             : Statements(std::move(stmts))
         {
             this->Location = std::move(loc);
@@ -168,7 +168,7 @@ namespace Aleng
         NodePtr ThenBranch;
         NodePtr ElseBranch;
 
-        IfNode(NodePtr cond, NodePtr thenB, NodePtr elseB, TokenLocation loc)
+        IfNode(NodePtr cond, NodePtr thenB, NodePtr elseB, SourceRange loc)
             : Condition(std::move(cond)), ThenBranch(std::move(thenB)), ElseBranch(std::move(elseB))
         {
             this->Location = std::move(loc);
@@ -253,13 +253,13 @@ namespace Aleng
 
         NodePtr Body;
 
-        ForStatementNode(ForNumericRange numericInfo, NodePtr body, TokenLocation loc)
+        ForStatementNode(ForNumericRange numericInfo, NodePtr body, SourceRange loc)
             : Type(LoopType::NUMERIC), NumericLoopInfo(std::move(numericInfo)), Body(std::move(body))
         {
             this->Location = std::move(loc);
         }
 
-        ForStatementNode(ForCollectionRange collectionInfo, NodePtr body, TokenLocation loc)
+        ForStatementNode(ForCollectionRange collectionInfo, NodePtr body, SourceRange loc)
             : Type(LoopType::COLLECTION), CollectionLoopInfo(std::move(collectionInfo)), Body(std::move(body))
         {
             this->Location = std::move(loc);
@@ -323,7 +323,7 @@ namespace Aleng
         NodePtr Condition;
         NodePtr Body;
 
-        WhileStatementNode(NodePtr cond, NodePtr body, TokenLocation loc)
+        WhileStatementNode(NodePtr cond, NodePtr body, SourceRange loc)
             : Condition(std::move(cond)), Body(std::move(body))
         {
             this->Location = std::move(loc);
@@ -355,7 +355,7 @@ namespace Aleng
         std::vector<Parameter> Parameters;
         NodePtr Body;
 
-        FunctionDefinitionNode(std::optional<std::string> funcName, std::vector<Parameter> params, NodePtr body, TokenLocation loc)
+        FunctionDefinitionNode(std::optional<std::string> funcName, std::vector<Parameter> params, NodePtr body, SourceRange loc)
             : FunctionName(std::move(funcName)), Parameters(std::move(params)), Body(std::move(body))
         {
             this->Location = std::move(loc);
@@ -402,7 +402,7 @@ namespace Aleng
         NodePtr CallableExpression;
         std::vector<NodePtr> Arguments;
 
-        FunctionCallNode(NodePtr calExpr, std::vector<NodePtr> args, TokenLocation loc)
+        FunctionCallNode(NodePtr calExpr, std::vector<NodePtr> args, SourceRange loc)
             : CallableExpression(std::move(calExpr)), Arguments(std::move(args))
         {
             this->Location = std::move(loc);
@@ -442,7 +442,7 @@ namespace Aleng
     {
         NodePtr ReturnValueExpression;
 
-        ReturnNode(NodePtr valExpr, TokenLocation loc) : ReturnValueExpression(std::move(valExpr))
+        ReturnNode(NodePtr valExpr, SourceRange loc) : ReturnValueExpression(std::move(valExpr))
         {
             this->Location = std::move(loc);
         }
@@ -464,7 +464,7 @@ namespace Aleng
 
     struct BreakNode : ASTNode
     {
-        explicit BreakNode(TokenLocation loc)
+        explicit BreakNode(SourceRange loc)
         {
             this->Location = std::move(loc);
         }
@@ -484,7 +484,7 @@ namespace Aleng
 
     struct ContinueNode : ASTNode
     {
-        explicit ContinueNode(TokenLocation loc)
+        explicit ContinueNode(SourceRange loc)
         {
             this->Location = std::move(loc);
         }
@@ -508,7 +508,7 @@ namespace Aleng
         NodePtr Right;
         bool Inverse;
 
-        EqualsExpressionNode(NodePtr left, NodePtr right, bool inv, TokenLocation loc)
+        EqualsExpressionNode(NodePtr left, NodePtr right, bool inv, SourceRange loc)
             : Left(std::move(left)), Right(std::move(right)), Inverse(inv)
         {
             this->Location = std::move(loc);
@@ -546,7 +546,7 @@ namespace Aleng
         NodePtr Right;
         TokenType Operator;
 
-        BinaryExpressionNode(TokenType op, NodePtr left, NodePtr right, TokenLocation loc)
+        BinaryExpressionNode(TokenType op, NodePtr left, NodePtr right, SourceRange loc)
             : Left(std::move(left)), Right(std::move(right)), Operator(op)
         {
             this->Location = std::move(loc);
@@ -584,7 +584,7 @@ namespace Aleng
         TokenType Operator;
         NodePtr Right;
 
-        UnaryExpressionNode(TokenType op, NodePtr right, TokenLocation loc)
+        UnaryExpressionNode(TokenType op, NodePtr right, SourceRange loc)
             : Operator(op), Right(std::move(right))
         {
             this->Location = std::move(loc);
@@ -609,7 +609,7 @@ namespace Aleng
     {
         std::string ModuleName;
 
-        ImportModuleNode(std::string moduleName, TokenLocation loc)
+        ImportModuleNode(std::string moduleName, SourceRange loc)
             : ModuleName(std::move(moduleName))
         {
             this->Location = std::move(loc);
@@ -637,7 +637,7 @@ namespace Aleng
         NodePtr Left;
         NodePtr Right;
 
-        AssignExpressionNode(NodePtr left, NodePtr right, TokenLocation loc)
+        AssignExpressionNode(NodePtr left, NodePtr right, SourceRange loc)
             : Left(std::move(left)), Right(std::move(right))
         {
             this->Location = std::move(loc);
@@ -673,7 +673,7 @@ namespace Aleng
         NodePtr Object;
         Token MemberIdentifier;
 
-        MemberAccessNode(NodePtr obj, Token member, TokenLocation loc)
+        MemberAccessNode(NodePtr obj, Token member, SourceRange loc)
             : Object(std::move(obj)), MemberIdentifier(std::move(member))
         {
             this->Location = std::move(loc);
@@ -701,7 +701,7 @@ namespace Aleng
         NodePtr Object;
         NodePtr Index;
 
-        ListAccessNode(NodePtr obj, NodePtr index, TokenLocation loc)
+        ListAccessNode(NodePtr obj, NodePtr index, SourceRange loc)
             : Object(std::move(obj)), Index(std::move(index))
         {
             this->Location = std::move(loc);
@@ -729,7 +729,7 @@ namespace Aleng
     {
         std::vector<std::pair<NodePtr, NodePtr>> Elements;
 
-        MapNode(std::vector<std::pair<NodePtr, NodePtr>> elements, TokenLocation loc)
+        MapNode(std::vector<std::pair<NodePtr, NodePtr>> elements, SourceRange loc)
             : Elements(std::move(elements))
         {
             this->Location = std::move(loc);
@@ -767,7 +767,7 @@ namespace Aleng
     struct ListNode : ASTNode
     {
         std::vector<NodePtr> Elements;
-        ListNode(std::vector<NodePtr> elements, TokenLocation loc)
+        ListNode(std::vector<NodePtr> elements, SourceRange loc)
             : Elements(std::move(elements))
         {
             this->Location = std::move(loc);
@@ -806,7 +806,7 @@ namespace Aleng
     struct BooleanNode : ASTNode
     {
         bool Value;
-        BooleanNode(bool val, TokenLocation loc) : Value(val)
+        BooleanNode(bool val, SourceRange loc) : Value(val)
         {
             this->Location = std::move(loc);
         }
@@ -821,13 +821,13 @@ namespace Aleng
     {
         long long Value;
 
-        explicit IntegerNode(TokenLocation loc)
+        explicit IntegerNode(SourceRange loc)
             : Value(0)
         {
             this->Location = std::move(loc);
         }
 
-        IntegerNode(int value, TokenLocation loc)
+        IntegerNode(int value, SourceRange loc)
             : Value(value)
         {
             this->Location = std::move(loc);
@@ -854,13 +854,13 @@ namespace Aleng
     {
         float Value;
 
-        explicit FloatNode(TokenLocation loc)
+        explicit FloatNode(SourceRange loc)
             : Value(0.0f)
         {
             this->Location = std::move(loc);
         }
 
-        FloatNode(float value, TokenLocation loc)
+        FloatNode(float value, SourceRange loc)
             : Value(value)
         {
             this->Location = std::move(loc);
@@ -888,18 +888,18 @@ namespace Aleng
     {
         std::string Value;
 
-        explicit StringNode(TokenLocation loc)
+        explicit StringNode(SourceRange loc)
         {
             this->Location = std::move(loc);
         }
 
-        StringNode(const std::string &value, TokenLocation loc)
+        StringNode(const std::string &value, SourceRange loc)
             : Value(value)
         {
             this->Location = std::move(loc);
         }
 
-        StringNode(std::string &&value, TokenLocation loc)
+        StringNode(std::string &&value, SourceRange loc)
             : Value(std::move(value))
         {
             this->Location = std::move(loc);
@@ -930,13 +930,13 @@ namespace Aleng
         IdentifierNode()
         = default;
 
-        IdentifierNode(const std::string &value, TokenLocation loc)
+        IdentifierNode(const std::string &value, SourceRange loc)
             : Value(value)
         {
             this->Location = std::move(loc);
         }
 
-        IdentifierNode(std::string &&value, TokenLocation loc)
+        IdentifierNode(std::string &&value, SourceRange loc)
             : Value(std::move(value))
         {
             this->Location = std::move(loc);

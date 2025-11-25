@@ -62,8 +62,6 @@ namespace Aleng
 
 namespace Aleng
 {
-
-
     AlengType Visitor::GetAlengType(const EvaluatedValue &val)
     {
         if (std::holds_alternative<double>(val))
@@ -148,7 +146,17 @@ namespace Aleng
             try
             {
                 Parser parser(source, name);
+
                 const auto ast = parser.ParseProgram();
+
+                if (parser.HasErrors())
+                {
+                    for (const auto& err : parser.GetErrors())
+                    {
+                        PrintFormattedError(err, "");
+                    }
+                    continue;
+                }
 
                 PushScope();
                 ast->Accept(*this);
@@ -204,10 +212,11 @@ namespace Aleng
         (*m_SymbolTableStack.back())[name] = value;
     }
 
-    void Visitor::AssignVariable(const std::string &name, const EvaluatedValue &value)
+    void Visitor::AssignVariable(const std::string &name, const EvaluatedValue &value) const
     {
-        for (const auto & scope_ptr : std::ranges::reverse_view(m_SymbolTableStack))
+        for (int i = static_cast<int>(m_SymbolTableStack.size()) - 1; i >= 0; --i)
         {
+            auto& scope_ptr = m_SymbolTableStack[i];
             if (scope_ptr->contains(name))
             {
                 (*scope_ptr)[name] = value;
@@ -388,7 +397,14 @@ namespace Aleng
 
         std::string sourceCode = buffer.str();
         auto parser = Parser(sourceCode, filepath);
+
         auto programAst = parser.ParseProgram();
+        if (parser.HasErrors()) {
+            for (const auto& err : parser.GetErrors()) {
+                PrintFormattedError(err, filepath);
+            }
+            return 1.0;
+        }
 
         return programAst->Accept(visitor);
     }
@@ -640,6 +656,15 @@ namespace Aleng
         Parser parser(sourceCode, modulePath);
         const auto ast = parser.ParseProgram();
 
+        if (parser.HasErrors())
+        {
+            for (const auto& err : parser.GetErrors())
+            {
+                PrintFormattedError(err, modulePath);
+            }
+            return false;
+        }
+
         PushScope();
         try
         {
@@ -686,10 +711,11 @@ namespace Aleng
     {
         return node.Value;
     }
-    EvaluatedValue Visitor::Visit(const IdentifierNode &node)
+    EvaluatedValue Visitor::Visit(const IdentifierNode &node) const
     {
-        for (const auto & scope_ptr : std::ranges::reverse_view(m_SymbolTableStack))
+        for (int i = static_cast<int>(m_SymbolTableStack.size()) - 1; i >= 0; i--)
         {
+            auto& scope_ptr = m_SymbolTableStack[i];
             if (scope_ptr->contains(node.Value))
                 return scope_ptr->at(node.Value);
         }
@@ -902,7 +928,7 @@ namespace Aleng
 
     EvaluatedValue Visitor::Visit(const FunctionDefinitionNode &node)
     {
-        std::string internalName = node.FunctionName.value_or("lambda@" + std::to_string(node.Location.Line));
+        std::string internalName = node.FunctionName.value_or("lambda@" + std::to_string(node.Location.Start.Line));
 
         auto funcNodeCopy = std::make_shared<FunctionDefinitionNode>(node);
         SymbolTableStack currentEnv = m_SymbolTableStack;
@@ -954,7 +980,7 @@ namespace Aleng
             size_t argIdx = 0;
             bool variadicProcessed = false;
 
-            auto funcName = funcDef.FunctionName.value_or("lambda@" + std::to_string(funcDef.Location.Line));
+            auto funcName = funcDef.FunctionName.value_or("lambda@" + std::to_string(funcDef.Location.Start.Line));
 
             for (const auto &param : funcDef.Parameters)
             {
@@ -1032,7 +1058,7 @@ namespace Aleng
                 catch (const ReturnSignal &signal) {
                     result = signal.Value;
                 }
-                catch (const std::exception& e) {
+                catch (const std::exception& _) {
                     throw;
                 }
                 catch (...) {

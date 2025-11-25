@@ -42,7 +42,7 @@ namespace Aleng::StdLib
                 passed++;
             } catch (const AlengError& err) {
                 std::cout << "  \033[31m✖\033[0m " << description << std::endl;
-                std::cout << "    \033[31m[FAIL]\033[0m " << err.what() << " at " << err.GetLocation().FilePath << ":" << err.GetLocation().Line << std::endl;
+                std::cout << "    \033[31m[FAIL]\033[0m " << err.what() << " at " << err.GetRange().FilePath << ":" << err.GetRange().Start.Line << std::endl;
                 failed++;
             } catch (const std::exception& e) {
                  std::cout << "  \033[91m✖\033[0m " << description << std::endl;

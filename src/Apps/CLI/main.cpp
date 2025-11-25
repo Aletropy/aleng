@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
     {
         std::string sourceCode;
 
-        if (std::string filepath = err.GetLocation().FilePath; !filepath.empty() && filepath != "REPL")
+        if (std::string filepath = err.GetRange().FilePath; !filepath.empty() && filepath != "REPL")
         {
             if (std::ifstream file(filepath); file)
             {

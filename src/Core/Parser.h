@@ -37,7 +37,7 @@ namespace Aleng
         NodePtr Factor();
 
         Token Peek();
-        void ReportError(const std::string& msg, TokenLocation loc);
+        void ReportError(const std::string& msg, SourceRange loc);
         void Synchronize();
 
     private:

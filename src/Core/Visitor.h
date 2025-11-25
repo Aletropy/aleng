@@ -52,7 +52,7 @@ namespace Aleng
         static EvaluatedValue Visit(const FloatNode &node);
 
         static EvaluatedValue Visit(const StringNode &node);
-        EvaluatedValue Visit(const IdentifierNode &node);
+        EvaluatedValue Visit(const IdentifierNode &node) const;
         EvaluatedValue Visit(const ListAccessNode &node);
         EvaluatedValue Visit(const ReturnNode &node);
 
@@ -74,7 +74,7 @@ namespace Aleng
         void PushScope();
         void PopScope();
         void DefineVariable(const std::string &name, const EvaluatedValue &value, bool allowRedefinitionCurrentScope = true);
-        void AssignVariable(const std::string& name, const EvaluatedValue& value);
+        void AssignVariable(const std::string& name, const EvaluatedValue& value) const;
         EvaluatedValue LookupVariable(const std::string &name);
         bool IsVariableDefinedInCurrentScope(const std::string &name) const;
     private:

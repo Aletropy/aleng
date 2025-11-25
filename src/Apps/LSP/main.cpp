@@ -24,7 +24,7 @@ void ValidateTextDocument(LSPTransport &transport, const std::string &fileUri, c
 
         for (const auto &err: parser.GetErrors())
         {
-            const auto loc = err.GetLocation();
+            const auto loc = err.GetRange();
             int line = std::max(0, loc.Line - 1);
             int col = std::max(0, loc.Column - 1);
 

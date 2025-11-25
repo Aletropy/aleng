@@ -1,5 +1,8 @@
 #include "AST.h"
 #include "Parser.h"
+
+#include <iostream>
+
 #include "Error.h"
 
 // Internal exception used only for control flow during parsing errors
@@ -52,7 +55,7 @@ namespace Aleng
         {
             m_Index++;
             NodePtr returnValue = nullptr;
-            // Try to parse an expression if one exists
+
             if (m_Index < m_Tokens.size() &&
                 m_Tokens[m_Index].Type != TokenType::END &&
                 m_Tokens[m_Index].Type != TokenType::ELSE &&
@@ -60,17 +63,17 @@ namespace Aleng
             {
                  returnValue = Expression();
             }
-            return std::make_unique<ReturnNode>(std::move(returnValue), token.Location);
+            return std::make_unique<ReturnNode>(std::move(returnValue), token.Range);
         }
         else if (token.Type == TokenType::BREAK)
         {
             m_Index++;
-            return std::make_unique<BreakNode>(token.Location);
+            return std::make_unique<BreakNode>(token.Range);
         }
         else if (token.Type == TokenType::CONTINUE)
         {
             m_Index++;
-            return std::make_unique<ContinueNode>(token.Location);
+            return std::make_unique<ContinueNode>(token.Range);
         }
 
         auto expr = Expression();
@@ -86,11 +89,11 @@ namespace Aleng
 
         if (m_Index >= m_Tokens.size())
         {
-             ReportError("Unexpected end of file inside 'If' condition.", startToken.Location);
+             ReportError("Unexpected end of file inside 'If' condition.", startToken.Range);
              throw ParserSyncException();
         }
 
-        auto thenBlockStartLoc = m_Tokens[m_Index].Location;
+        auto thenBlockStartLoc = m_Tokens[m_Index].Range;
         std::vector<NodePtr> thenStatements;
 
         while (m_Index < m_Tokens.size() &&
@@ -112,7 +115,7 @@ namespace Aleng
         if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::ELSE)
         {
             m_Index++;
-            auto elseBlockStartLoc = m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : thenBlockStartLoc;
+            auto elseBlockStartLoc = m_Index < m_Tokens.size() ? m_Tokens[m_Index].Range : thenBlockStartLoc;
             std::vector<NodePtr> elseStatements;
             while (m_Index < m_Tokens.size() &&
                    m_Tokens[m_Index].Type != TokenType::END &&
@@ -132,12 +135,18 @@ namespace Aleng
             m_Index++;
         else
         {
-            ReportError("Expected 'End' keyword to close 'If' statement.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+            ReportError("Expected 'End' keyword to close 'If' statement.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Range : startToken.Range);
             throw ParserSyncException();
         }
 
+        Token endToken = m_Tokens[m_Index - 1];
+        SourceRange fullRange;
+        fullRange.Start = startToken.Range.Start;
+        fullRange.End = endToken.Range.End;
+        fullRange.FilePath = startToken.Range.FilePath;
+
         return std::make_unique<IfNode>(
-            std::move(condition), std::move(thenBranch), std::move(elseBranch), startToken.Location);
+            std::move(condition), std::move(thenBranch), std::move(elseBranch), fullRange);
     }
 
     NodePtr Parser::ParseForStatement()
@@ -147,7 +156,7 @@ namespace Aleng
 
         if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
         {
-            ReportError("Expected iterator variable name after 'For'.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+            ReportError("Expected iterator variable name after 'For'.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Range : startToken.Range);
             throw ParserSyncException();
         }
 
@@ -156,12 +165,12 @@ namespace Aleng
 
         if (m_Index >= m_Tokens.size())
         {
-            ReportError("Unexpected end of input after For <iterator>.", m_Tokens[m_Index - 1].Location);
+            ReportError("Unexpected end of input after For <iterator>.", m_Tokens[m_Index - 1].Range);
             throw ParserSyncException();
         }
 
         NodePtr body;
-        auto bodyStartLoc = m_Tokens[m_Index].Location;
+        auto bodyStartLoc = m_Tokens[m_Index].Range;
         std::vector<NodePtr> bodyStatements;
 
         if (m_Tokens[m_Index].Type == TokenType::ASSIGN)
@@ -185,7 +194,7 @@ namespace Aleng
             }
             else
             {
-                ReportError("Expected '..' or 'until' in numeric For loop range.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : bodyStartLoc);
+                ReportError("Expected '..' or 'until' in numeric For loop range.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Range : bodyStartLoc);
                 throw ParserSyncException();
             }
 
@@ -209,15 +218,21 @@ namespace Aleng
 
             if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::END)
             {
-                ReportError("Expected 'End' to close 'For' statement.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+                ReportError("Expected 'End' to close 'For' statement.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Range : startToken.Range);
                 throw ParserSyncException();
             }
 
             m_Index++;
             body = std::make_unique<BlockNode>(std::move(bodyStatements), bodyStartLoc);
-
             ForNumericRange numericInfo = {iteratorVarName, std::move(startExpr), std::move(endExpr), std::move(stepExpr), isUntil};
-            return std::make_unique<ForStatementNode>(numericInfo, std::move(body), startToken.Location);
+
+            Token endToken = m_Tokens[m_Index - 1];
+            SourceRange fullRange;
+            fullRange.Start = startToken.Range.Start;
+            fullRange.End = endToken.Range.End;
+            fullRange.FilePath = startToken.Range.FilePath;
+
+            return std::make_unique<ForStatementNode>(numericInfo, std::move(body), fullRange);
         }
         else if (m_Tokens[m_Index].Type == TokenType::IN)
         {
@@ -236,7 +251,7 @@ namespace Aleng
 
             if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::END)
             {
-                ReportError("Expected 'End' to close 'For' statement.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+                ReportError("Expected 'End' to close 'For' statement.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Range : startToken.Range);
                 throw ParserSyncException();
             }
 
@@ -244,10 +259,10 @@ namespace Aleng
             m_Index++;
 
             ForCollectionRange collectionInfo = {iteratorVarName, std::move(collectionExpr)};
-            return std::make_unique<ForStatementNode>(collectionInfo, std::move(body), startToken.Location);
+            return std::make_unique<ForStatementNode>(collectionInfo, std::move(body), startToken.Range);
         }
 
-        ReportError("Expected '=' (for range) or 'in' (for collection) after iterator variable in For loop.", m_Tokens[m_Index].Location);
+        ReportError("Expected '=' (for range) or 'in' (for collection) after iterator variable in For loop.", m_Tokens[m_Index].Range);
         throw ParserSyncException();
     }
 
@@ -258,7 +273,7 @@ namespace Aleng
 
         if (m_Index >= m_Tokens.size())
         {
-            ReportError("Unexpected end of input after While keyword.", startToken.Location);
+            ReportError("Unexpected end of input after While keyword.", startToken.Range);
             throw ParserSyncException();
         }
 
@@ -266,7 +281,7 @@ namespace Aleng
 
         if (m_Index >= m_Tokens.size())
         {
-             ReportError("Unexpected end of input in While loop.", startToken.Location);
+             ReportError("Unexpected end of input in While loop.", startToken.Range);
              throw ParserSyncException();
         }
 
@@ -285,14 +300,14 @@ namespace Aleng
 
         if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::END)
         {
-            ReportError("Expected 'End' to close 'While' statement.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+            ReportError("Expected 'End' to close 'While' statement.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Range : startToken.Range);
             throw ParserSyncException();
         }
 
         m_Index++;
-        NodePtr body = std::make_unique<BlockNode>(std::move(bodyStatements), bodyStartToken.Location);
+        NodePtr body = std::make_unique<BlockNode>(std::move(bodyStatements), bodyStartToken.Range);
 
-        return std::make_unique<WhileStatementNode>(std::move(condition), std::move(body), startToken.Location);
+        return std::make_unique<WhileStatementNode>(std::move(condition), std::move(body), startToken.Range);
     }
 
     NodePtr Parser::ParseFunctionDefinition()
@@ -305,7 +320,7 @@ namespace Aleng
 
         if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
         {
-            ReportError("Expected function name after 'Fn'.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+            ReportError("Expected function name after 'Fn'.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Range : startToken.Range);
             throw ParserSyncException();
         }
 
@@ -314,7 +329,7 @@ namespace Aleng
         m_Index++;
         if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::LPAREN)
         {
-            ReportError("Expected '(' after function name.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+            ReportError("Expected '(' after function name.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Range : startToken.Range);
             throw ParserSyncException();
         }
         m_Index ++;
@@ -326,7 +341,7 @@ namespace Aleng
         {
             if (processedVariadic)
             {
-                ReportError("Variadic parameters must be the last parameters in a function definition.", m_Tokens[m_Index].Location);
+                ReportError("Variadic parameters must be the last parameters in a function definition.", m_Tokens[m_Index].Range);
                 throw ParserSyncException();
             }
 
@@ -334,7 +349,7 @@ namespace Aleng
             {
                 if (m_Tokens[m_Index].Type != TokenType::COMMA && m_Tokens[m_Index].Type != TokenType::RPAREN)
                 {
-                    ReportError("Expected ',' between parameters or ')' to close parameter list.", m_Tokens[m_Index].Location);
+                    ReportError("Expected ',' between parameters or ')' to close parameter list.", m_Tokens[m_Index].Range);
                     throw ParserSyncException();
                 }
                 if (m_Tokens[m_Index].Type == TokenType::COMMA)
@@ -353,7 +368,7 @@ namespace Aleng
 
             if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
             {
-                ReportError("Expected parameter name.", m_Tokens[m_Index].Location);
+                ReportError("Expected parameter name.", m_Tokens[m_Index].Range);
                 throw ParserSyncException();
             }
 
@@ -368,7 +383,7 @@ namespace Aleng
                 m_Index++; // Consume ':'
                 if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
                 {
-                    ReportError("Expected type name after ':'.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : paramToken.Location);
+                    ReportError("Expected type name after ':'.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Range : paramToken.Range);
                     throw ParserSyncException();
                 }
 
@@ -381,12 +396,12 @@ namespace Aleng
         }
 
         if (m_Index >= m_Tokens.size()) {
-             ReportError("Unexpected end of input in function definition.", startToken.Location);
+             ReportError("Unexpected end of input in function definition.", startToken.Range);
              throw ParserSyncException();
         }
         m_Index++; // Consume ')'
 
-        auto bodyStartLoc = m_Tokens[m_Index].Location;
+        auto bodyStartLoc = m_Tokens[m_Index].Range;
         std::vector<NodePtr> bodyStatements;
         while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END && m_Tokens[m_Index].Type != TokenType::END_OF_FILE)
         {
@@ -400,14 +415,14 @@ namespace Aleng
 
         if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::END)
         {
-             ReportError("Expected 'End' to close function definition.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+             ReportError("Expected 'End' to close function definition.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Range : startToken.Range);
              throw ParserSyncException();
         }
 
         NodePtr body = std::make_unique<BlockNode>(std::move(bodyStatements), bodyStartLoc);
         m_Index++;
 
-        return std::make_unique<FunctionDefinitionNode>(std::make_optional(funcName), std::move(params), std::move(body), startToken.Location);
+        return std::make_unique<FunctionDefinitionNode>(std::make_optional(funcName), std::move(params), std::move(body), startToken.Range);
     }
 
     NodePtr Parser::ParseFunctionLiteral()
@@ -417,7 +432,7 @@ namespace Aleng
 
         if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::LPAREN)
         {
-            ReportError("Expected '(' for anonymous function declaration or 'name' for default function declaration.", startToken.Location);
+            ReportError("Expected '(' for anonymous function declaration or 'name' for default function declaration.", startToken.Range);
             throw ParserSyncException();
         }
         m_Index++;
@@ -430,7 +445,7 @@ namespace Aleng
             // Parameter logic from ParseFunctionDefinition
              if (processedVariadic)
             {
-                ReportError("Variadic parameters must be the last parameters.", m_Tokens[m_Index].Location);
+                ReportError("Variadic parameters must be the last parameters.", m_Tokens[m_Index].Range);
                 throw ParserSyncException();
             }
 
@@ -438,7 +453,7 @@ namespace Aleng
             {
                 if (m_Tokens[m_Index].Type != TokenType::COMMA && m_Tokens[m_Index].Type != TokenType::RPAREN)
                 {
-                    ReportError("Expected ',' or ')'", m_Tokens[m_Index].Location);
+                    ReportError("Expected ',' or ')'", m_Tokens[m_Index].Range);
                     throw ParserSyncException();
                 }
                 if(m_Tokens[m_Index].Type == TokenType::COMMA) m_Index++;
@@ -457,7 +472,7 @@ namespace Aleng
 
             if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
             {
-                ReportError("Expected parameter name.", m_Tokens[m_Index].Location);
+                ReportError("Expected parameter name.", m_Tokens[m_Index].Range);
                 throw ParserSyncException();
             }
 
@@ -472,7 +487,7 @@ namespace Aleng
                 m_Index++;
                 if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
                 {
-                    ReportError("Expected type name after ':'.", m_Tokens[m_Index].Location);
+                    ReportError("Expected type name after ':'.", m_Tokens[m_Index].Range);
                     throw ParserSyncException();
                 }
                 typeName = m_Tokens[m_Index].Value;
@@ -484,12 +499,12 @@ namespace Aleng
         }
 
         if (m_Index >= m_Tokens.size()) {
-             ReportError("Unexpected end of input.", startToken.Location);
+             ReportError("Unexpected end of input.", startToken.Range);
              throw ParserSyncException();
         }
         m_Index++; // Consume ')'
 
-        auto bodyStartLoc = m_Tokens[m_Index].Location;
+        auto bodyStartLoc = m_Tokens[m_Index].Range;
         std::vector<NodePtr> bodyStatements;
         while (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::END)
         {
@@ -503,14 +518,14 @@ namespace Aleng
 
         if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::END)
         {
-            ReportError("Expected 'End' to close anonymous function.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+            ReportError("Expected 'End' to close anonymous function.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Range : startToken.Range);
             throw ParserSyncException();
         }
 
         NodePtr body = std::make_unique<BlockNode>(std::move(bodyStatements), bodyStartLoc);
         m_Index++;
 
-        return std::make_unique<FunctionDefinitionNode>(std::nullopt, std::move(params), std::move(body), startToken.Location);
+        return std::make_unique<FunctionDefinitionNode>(std::nullopt, std::move(params), std::move(body), startToken.Range);
     }
 
     NodePtr Parser::ParseBlock()
@@ -529,7 +544,7 @@ namespace Aleng
         if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::END)
             m_Index++;
 
-        return std::make_unique<BlockNode>(std::move(statements), m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : TokenLocation{});
+        return std::make_unique<BlockNode>(std::move(statements), m_Index < m_Tokens.size() ? m_Tokens[m_Index].Range : SourceRange{});
     }
 
     NodePtr Parser::ParseListLiteral()
@@ -546,7 +561,7 @@ namespace Aleng
                 {
                     if (m_Tokens[m_Index].Type != TokenType::COMMA)
                     {
-                        ReportError("Expected ',' or ']' in list literal.", m_Tokens[m_Index].Location);
+                        ReportError("Expected ',' or ']' in list literal.", m_Tokens[m_Index].Range);
                         throw ParserSyncException();
                     }
                     m_Index++;
@@ -558,11 +573,11 @@ namespace Aleng
 
         if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::RBRACE)
         {
-            ReportError("Expected ']' to close list literal.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : TokenLocation{});
+            ReportError("Expected ']' to close list literal.", m_Tokens[m_Index-1].Range);
             throw ParserSyncException();
         }
         m_Index++;
-        return std::make_unique<ListNode>(std::move(elements), m_Tokens[m_Index-1].Location);
+        return std::make_unique<ListNode>(std::move(elements), m_Tokens[m_Index-1].Range);
     }
 
     NodePtr Parser::ParseMapLiteral()
@@ -581,7 +596,7 @@ namespace Aleng
                 {
                     if (m_Tokens[m_Index].Type != TokenType::COMMA)
                     {
-                        ReportError("Expected ',' or '}' in map literal.", m_Tokens[m_Index].Location);
+                        ReportError("Expected ',' or '}' in map literal.", m_Tokens[m_Index].Range);
                         throw ParserSyncException();
                     }
                     m_Index++;
@@ -591,7 +606,7 @@ namespace Aleng
 
                 if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::COLON)
                 {
-                    ReportError("Expected ':' to assign value to key in map literal.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+                    ReportError("Expected ':' to assign value to key in map literal.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Range : startToken.Range);
                     throw ParserSyncException();
                 }
 
@@ -605,12 +620,12 @@ namespace Aleng
 
             if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::RCURLY)
             {
-                ReportError("Expected '}' to close map literal.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Location : startToken.Location);
+                ReportError("Expected '}' to close map literal.", m_Index < m_Tokens.size() ? m_Tokens[m_Index].Range : startToken.Range);
                 throw ParserSyncException();
             }
         }
         m_Index++;
-        return std::make_unique<MapNode>(std::move(elements), startToken.Location);
+        return std::make_unique<MapNode>(std::move(elements), startToken.Range);
     }
 
     NodePtr Parser::Expression()
@@ -623,14 +638,17 @@ namespace Aleng
                 !dynamic_cast<IdentifierNode *>(left.get()) && !dynamic_cast<ListAccessNode *>(left.get()) &&
                 !dynamic_cast<MemberAccessNode*>(left.get()))
             {
-                ReportError("Invalid left-hand side in assignment expression.", m_Tokens[m_Index].Location);
+                ReportError("Invalid left-hand side in assignment expression.", m_Tokens[m_Index].Range);
                 throw ParserSyncException();
             }
 
+            SourceRange assignLocation = m_Tokens[m_Index].Range;
+
             m_Index++;
-            NodePtr right = Statement();
+
+            NodePtr right = Expression();
             return std::make_unique<AssignExpressionNode>(
-                std::move(left), std::move(right), m_Tokens[m_Index].Location);
+                std::move(left), std::move(right), assignLocation);
         }
 
         return left;
@@ -645,7 +663,7 @@ namespace Aleng
             auto op = m_Tokens[m_Index];
             m_Index++;
             auto right = LogicalAndExpression();
-            left = std::make_unique<BinaryExpressionNode>(op.Type, std::move(left), std::move(right), m_Tokens[m_Index].Location);
+            left = std::make_unique<BinaryExpressionNode>(op.Type, std::move(left), std::move(right), m_Tokens[m_Index].Range);
         }
 
         return left;
@@ -660,7 +678,7 @@ namespace Aleng
             auto op = m_Tokens[m_Index];
             m_Index++;
             auto right = EqualityExpression();
-            left = std::make_unique<BinaryExpressionNode>(op.Type, std::move(left), std::move(right), m_Tokens[m_Index].Location);
+            left = std::make_unique<BinaryExpressionNode>(op.Type, std::move(left), std::move(right), m_Tokens[m_Index].Range);
         }
 
         return left;
@@ -672,10 +690,15 @@ namespace Aleng
 
         while (m_Index < m_Tokens.size() && (m_Tokens[m_Index].Type == TokenType::EQUALS))
         {
-            auto op = m_Tokens[m_Index];
-            m_Index++;
+            auto op = m_Tokens[m_Index++];
             auto right = ComparisonExpression();
-            left = std::make_unique<EqualsExpressionNode>(std::move(left), std::move(right), op.Value == "!=", m_Tokens[m_Index].Location);
+
+            SourceRange range;
+            range.Start = left->Location.Start;
+            range.End = right->Location.End;
+            range.FilePath = left->Location.FilePath;
+
+            left = std::make_unique<EqualsExpressionNode>(std::move(left), std::move(right), op.Value == "!=", range);
         }
 
         return left;
@@ -688,10 +711,15 @@ namespace Aleng
         while (m_Index < m_Tokens.size() && (m_Tokens[m_Index].Type == TokenType::GREATER || m_Tokens[m_Index].Type == TokenType::GREATER_EQUAL ||
                                              m_Tokens[m_Index].Type == TokenType::MINOR || m_Tokens[m_Index].Type == TokenType::MINOR_EQUAL))
         {
-            auto op = m_Tokens[m_Index];
-            m_Index++;
+            auto op = m_Tokens[m_Index++];
             auto right = AddictiveExpression();
-            left = std::make_unique<BinaryExpressionNode>(op.Type, std::move(left), std::move(right), m_Tokens[m_Index].Location);
+
+            SourceRange range;
+            range.Start = left->Location.Start;
+            range.End = right->Location.End;
+            range.FilePath = left->Location.FilePath;
+
+            left = std::make_unique<BinaryExpressionNode>(op.Type, std::move(left), std::move(right), range);
         }
 
         return left;
@@ -703,10 +731,15 @@ namespace Aleng
 
         while (m_Index < m_Tokens.size() && (m_Tokens[m_Index].Type == TokenType::PLUS || m_Tokens[m_Index].Type == TokenType::MINUS))
         {
-            auto op = m_Tokens[m_Index];
-            m_Index++;
+            auto op = m_Tokens[m_Index++];
             auto right = Term();
-            left = std::make_unique<BinaryExpressionNode>(op.Type, std::move(left), std::move(right), m_Tokens[m_Index].Location);
+
+            SourceRange range;
+            range.Start = left->Location.Start;
+            range.End = right->Location.End;
+            range.FilePath = left->Location.FilePath;
+
+            left = std::make_unique<BinaryExpressionNode>(op.Type, std::move(left), std::move(right), range);
         }
 
         return left;
@@ -722,7 +755,7 @@ namespace Aleng
             auto op = m_Tokens[m_Index];
             m_Index++;
             auto right = UnaryExpression();
-            left = std::make_unique<BinaryExpressionNode>(op.Type, std::move(left), std::move(right), m_Tokens[m_Index].Location);
+            left = std::make_unique<BinaryExpressionNode>(op.Type, std::move(left), std::move(right), m_Tokens[m_Index].Range);
         }
 
         return left;
@@ -737,11 +770,11 @@ namespace Aleng
             auto operand = UnaryExpression();
             if (op.Type == TokenType::MINUS)
             {
-                return std::make_unique<BinaryExpressionNode>(op.Type, std::make_unique<IntegerNode>(0, op.Location), std::move(operand), op.Location);
+                return std::make_unique<BinaryExpressionNode>(op.Type, std::make_unique<IntegerNode>(0, op.Range), std::move(operand), op.Range);
             }
             else
             {
-                return std::make_unique<UnaryExpressionNode>(op.Type, std::move(operand), op.Location);
+                return std::make_unique<UnaryExpressionNode>(op.Type, std::move(operand), op.Range);
             }
         }
 
@@ -751,7 +784,7 @@ namespace Aleng
     NodePtr Parser::Factor()
     {
         if (m_Index >= m_Tokens.size()) {
-             ReportError("Unexpected end of expression.", m_Index > 0 ? m_Tokens[m_Index-1].Location : TokenLocation{});
+             ReportError("Unexpected end of expression.", m_Index > 0 ? m_Tokens[m_Index-1].Range : SourceRange{});
              throw ParserSyncException();
         }
 
@@ -761,28 +794,28 @@ namespace Aleng
         if (token.Type == TokenType::TRUE)
         {
             m_Index++;
-            primaryExpr = std::make_unique<BooleanNode>(true, token.Location);
+            primaryExpr = std::make_unique<BooleanNode>(true, token.Range);
         }
         else if (token.Type == TokenType::FALSE)
         {
             m_Index++;
-            primaryExpr = std::make_unique<BooleanNode>(false, token.Location);
+            primaryExpr = std::make_unique<BooleanNode>(false, token.Range);
         }
         else if (token.Type == TokenType::INTEGER)
         {
             m_Index++;
-            primaryExpr = std::make_unique<IntegerNode>(std::stoll(token.Value), token.Location);
+            primaryExpr = std::make_unique<IntegerNode>(std::stoll(token.Value), token.Range);
         }
         else if (token.Type == TokenType::FLOAT)
         {
             m_Index++;
-            primaryExpr = std::make_unique<FloatNode>(std::stof(token.Value), token.Location);
+            primaryExpr = std::make_unique<FloatNode>(std::stof(token.Value), token.Range);
         }
 
         else if (token.Type == TokenType::STRING)
         {
             m_Index++;
-            primaryExpr = std::make_unique<StringNode>(token.Value, token.Location);
+            primaryExpr = std::make_unique<StringNode>(token.Value, token.Range);
         }
         else if (token.Type == TokenType::LBRACE)
             primaryExpr = ParseListLiteral();
@@ -792,7 +825,7 @@ namespace Aleng
             auto expr = Expression();
             if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::RPAREN)
             {
-                ReportError("Expected ')' after expression.", token.Location);
+                ReportError("Expected ')' after expression.", token.Range);
                 throw ParserSyncException();
             }
             m_Index++;
@@ -804,8 +837,8 @@ namespace Aleng
         {
             m_Index++;
             NodePtr operand = Factor();
-            auto zero = std::make_unique<IntegerNode>(0, token.Location);
-            primaryExpr = std::make_unique<BinaryExpressionNode>(TokenType::MINUS, std::move(zero), std::move(operand), token.Location);
+            auto zero = std::make_unique<IntegerNode>(0, token.Range);
+            primaryExpr = std::make_unique<BinaryExpressionNode>(TokenType::MINUS, std::move(zero), std::move(operand), token.Range);
         }
         else if (token.Type == TokenType::FUNCTION)
         {
@@ -814,7 +847,7 @@ namespace Aleng
         else if (token.Type == TokenType::IDENTIFIER)
         {
             m_Index++;
-            primaryExpr = std::make_unique<IdentifierNode>(token.Value, token.Location);
+            primaryExpr = std::make_unique<IdentifierNode>(token.Value, token.Range);
         }
         else if (token.Type == TokenType::IMPORT)
         {
@@ -822,14 +855,14 @@ namespace Aleng
             if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::STRING)
             {
                 auto pathStr = m_Tokens[m_Index++].Value;
-                return std::make_unique<ImportModuleNode>(pathStr, token.Location);
+                return std::make_unique<ImportModuleNode>(pathStr, token.Range);
             }
-            ReportError("Expected module name string after 'Import'.", token.Location);
+            ReportError("Expected module name string after 'Import'.", token.Range);
             throw ParserSyncException();
         }
         else
         {
-            ReportError("Unexpected token: " + token.Value, token.Location);
+            ReportError("Unexpected token: " + token.Value, token.Range);
             throw ParserSyncException();
         }
 
@@ -845,7 +878,7 @@ namespace Aleng
                 {
                     if (expectCommaArgs && m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::COMMA)
                     {
-                        ReportError("Expected ',' between function arguments.", token.Location);
+                        ReportError("Expected ',' between function arguments.", token.Range);
                         throw ParserSyncException();
                     }
                     if (expectCommaArgs)
@@ -857,13 +890,13 @@ namespace Aleng
 
                 if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type != TokenType::RPAREN)
                 {
-                    ReportError("Expected ')' after function arguments.", token.Location);
+                    ReportError("Expected ')' after function arguments.", token.Range);
                     throw ParserSyncException();
                 }
 
                 m_Index++;
 
-                primaryExpr = std::make_unique<FunctionCallNode>(std::move(primaryExpr), std::move(args), token.Location);
+                primaryExpr = std::make_unique<FunctionCallNode>(std::move(primaryExpr), std::move(args), token.Range);
             }
             else if (m_Tokens[m_Index].Type == TokenType::LBRACE)
             {
@@ -871,11 +904,11 @@ namespace Aleng
                 auto indexExpr = Expression();
                 if (m_Tokens[m_Index].Type != TokenType::RBRACE)
                 {
-                    ReportError("Expected ']' after list/map index expression.", token.Location);
+                    ReportError("Expected ']' after list/map index expression.", token.Range);
                     throw ParserSyncException();
                 }
                 m_Index++;
-                primaryExpr = std::make_unique<ListAccessNode>(std::move(primaryExpr), std::move(indexExpr), token.Location);
+                primaryExpr = std::make_unique<ListAccessNode>(std::move(primaryExpr), std::move(indexExpr), token.Range);
             }
             else if (m_Tokens[m_Index].Type == TokenType::DOT)
             {
@@ -884,14 +917,14 @@ namespace Aleng
 
                 if (m_Index >= m_Tokens.size() || m_Tokens[m_Index].Type != TokenType::IDENTIFIER)
                 {
-                    ReportError("Expected member name after '.'", token.Location);
+                    ReportError("Expected member name after '.'", token.Range);
                     throw ParserSyncException();
                 }
 
                 Token memberToken = m_Tokens[m_Index];
                 m_Index++;
 
-                primaryExpr = std::make_unique<MemberAccessNode>(std::move(primaryExpr), memberToken, dotToken.Location);
+                primaryExpr = std::make_unique<MemberAccessNode>(std::move(primaryExpr), memberToken, dotToken.Range);
             }
             else
                 break;
@@ -904,10 +937,10 @@ namespace Aleng
     {
         if (m_Index + 1 < m_Tokens.size())
             return m_Tokens[m_Index + 1];
-        return {TokenType::END_OF_FILE, "", m_Tokens[m_Index].Location};
+        return {TokenType::END_OF_FILE, "", m_Tokens[m_Index].Range};
     }
 
-    void Parser::ReportError(const std::string &msg, TokenLocation loc)
+    void Parser::ReportError(const std::string &msg, SourceRange loc)
     {
         m_Errors.emplace_back(msg, loc);
     }

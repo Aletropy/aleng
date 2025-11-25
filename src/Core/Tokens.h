@@ -1,6 +1,9 @@
 #pragma once
 
 #include <string>
+#include <utility>
+
+#include "SourceRange.h"
 
 namespace Aleng
 {
@@ -62,34 +65,19 @@ namespace Aleng
         END_OF_FILE // EOF
     };
 
-    struct TokenLocation
-    {
-        int Line = 1;
-        int Column = 1;
-        std::string FilePath;
-    };
-
     struct Token
     {
-        Token(TokenType type, char c, TokenLocation loc)
-        {
-            Type = type;
-            Value = c;
-            Location = loc;
-        }
-        Token(TokenType type, const std::string &str, TokenLocation loc)
-        {
-            Type = type;
-            Value = str;
-            Location = loc;
-        }
+        Token(const TokenType type, const char c, SourceRange range)
+            : Type(type), Value(std::string(1, c)), Range(std::move(range)) { }
+        Token(const TokenType type, std::string str, SourceRange range)
+            : Type(type), Value(std::move(str)), Range(std::move(range)) { }
 
         TokenType Type;
         std::string Value;
-        TokenLocation Location;
+        SourceRange Range;
     };
 
-    inline std::string TokenTypeToString(TokenType type)
+    inline std::string TokenTypeToString(const TokenType type)
     {
         switch (type)
         {
@@ -133,8 +121,63 @@ namespace Aleng
             return ";";
         case TokenType::UNKNOWN:
             return "Unknown";
-        default:
-            return "InvalidToken";
+        case TokenType::LBRACE:
+                return "[";
+        case TokenType::RBRACE:
+                return "]";
+        case TokenType::LCURLY:
+                return "(";
+        case TokenType::RCURLY:
+                return ")";
+        case TokenType::POWER:
+                return "^";
+        case TokenType::GREATER:
+                return ">";
+        case TokenType::GREATER_EQUAL:
+                return ">=";
+        case TokenType::MINOR:
+                return "<";
+        case TokenType::MINOR_EQUAL:
+                return "<=";
+        case TokenType::RANGE:
+                return "..";
+        case TokenType::COMMA:
+                return ",";
+        case TokenType::DOLLAR:
+                return "$";
+        case TokenType::EQUALS:
+                return "==";
+        case TokenType::IF:
+                return "If";
+        case TokenType::ELSE:
+                return "Else";
+        case TokenType::FOR:
+                return "For";
+        case TokenType::WHILE:
+                return "While";
+        case TokenType::IN:
+                return "in";
+        case TokenType::UNTIL:
+                return "until";
+        case TokenType::STEP:
+                return "step";
+        case TokenType::END:
+                return "End";
+        case TokenType::RETURN:
+                return "Return";
+        case TokenType::BREAK:
+                return "Break";
+        case TokenType::CONTINUE:
+                return "Continue";
+        case TokenType::IMPORT:
+                return "Import";
+        case TokenType::TRUE:
+                return "True";
+        case TokenType::FALSE:
+            return "False";
+        case TokenType::END_OF_FILE:
+            return "EOF";
         }
+        return "?";
     }
 }

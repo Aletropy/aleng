@@ -5,16 +5,19 @@
 
 namespace Aleng
 {
-    void PrintFormattedError(const AlengError &err, const std::string &sourceCode)
+    void PrintFormattedError(const AlengError &err, const std::string &sourceCode = "")
     {
         std::cerr << "Runtime Error: " << err.what() << std::endl;
 
-        auto [Line, Column, FilePath] = err.GetLocation();
-        std::cerr << "  --> " << FilePath << ":" << Line << ":" << Column << std::endl;
+        auto [Line, Column] = err.GetRange().Start;
+        const auto FilePath = err.GetRange().FilePath;
+        std::cerr << "  --> " << FilePath << ":" << Line+1 << ":" << Column+1 << std::endl;
         std::cerr << "    |" << std::endl;
 
+        const auto code = sourceCode.empty() ? err.GetRange().FilePath : sourceCode;
+
         std::vector<std::string> lines;
-        std::stringstream ss(sourceCode);
+        std::stringstream ss(code);
         std::string line;
 
         while (std::getline(ss, line))
@@ -23,12 +26,12 @@ namespace Aleng
         if (Line > 0 && Line <= lines.size())
         {
             const std::string lineNumStr = std::to_string(Line);
-            std::cerr << " " << lineNumStr << " | " << lines[Line - 1] << std::endl;
+            std::cerr << " " << lineNumStr << " | " << lines[Line] << std::endl;
 
             std::cerr << "    | ";
-            for (int i = 0; i < Column; i++)
+            for (int i = 0; i < Column+1; i++)
             {
-                if (lines[Line - 1][i] == '\t')
+                if (lines[Line][i] == '\t')
                     std::cerr << '\t';
                 else
                     std::cerr << ' ';

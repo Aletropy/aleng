@@ -2,6 +2,8 @@
 
 #include <string>
 #include <vector>
+
+#include "Error.h"
 #include "Tokens.h"
 
 namespace Aleng
@@ -9,10 +11,18 @@ namespace Aleng
     class Lexer
     {
     public:
-        Lexer(std::string input, std::string  filepath = "unknown");
+        explicit Lexer(std::string input, std::string  filepath = "unknown");
         std::vector<Token> Tokenize();
 
     private:
+        [[nodiscard]] char Peek(int offset = 0) const;
+        char Advance();
+        [[nodiscard]] Token MakeToken(TokenType type, std::string value, SourceLocation start) const;
+
+        AlengError MakeAlengError(const std::string &message, SourceLocation location) const;
+
+        void SkipWhitespace();
+
         Token Next();
 
     private:

@@ -10,19 +10,20 @@ namespace Aleng
     class AlengError final : public std::runtime_error
     {
     public:
-        AlengError(const std::string &message, TokenLocation location)
-            : std::runtime_error(message), m_Location(location) {}
+        AlengError(const std::string &message, SourceRange location)
+            : std::runtime_error(message), m_Range(std::move(location)) {}
         AlengError(const std::string &message, const ASTNode &node)
-            : std::runtime_error(message), m_Location(node.Location) {}
+            : std::runtime_error(message), m_Range(node.Location) {}
 
-        [[nodiscard]] TokenLocation GetLocation() const
+        [[nodiscard]] SourceRange GetRange() const
         {
-            return m_Location;
+            return m_Range;
         }
 
     private:
-        TokenLocation m_Location;
+        SourceRange m_Range;
     };
 
     void PrintFormattedError(const AlengError &err, const std::string &sourceCode);
+
 }

@@ -1,8 +1,11 @@
+// ReSharper disable CppExpressionWithoutSideEffects
 #include <iostream>
 #include <emscripten/bind.h>
 #include <emscripten/emscripten.h>
 #include <sstream>
 #include <string>
+#include <algorithm>
+#include <vector>
 
 #include <nlohmann/json.hpp>
 
@@ -14,6 +17,7 @@
 
 using namespace emscripten;
 using namespace Aleng;
+using namespace AlengLSP;
 
 using json = nlohmann::json;
 
@@ -40,9 +44,9 @@ public:
         }
         catch (const AlengError& e) {
             std::stringstream ss;
-            auto loc = e.GetLocation();
+            auto loc = e.GetRange();
             ss << "Runtime Error: " << e.what() << "\n";
-            ss << "  at line " << loc.Line << ", col " << loc.Column;
+            ss << "  at line " << loc.Start.Line << ", col " << loc.Start.Column;
             return ss.str();
         }
         catch (const std::exception& e) {
@@ -50,45 +54,45 @@ public:
         }
     }
 
-    std::string Lint(std::string sourceCode)
+    std::string Lint(const std::string &sourceCode)
     {
         json diagnostics = json::array();
+        const std::string uri = "browser.aleng";
 
         try
         {
-            Parser parser(sourceCode, "browser.aleng");
+            Parser parser(sourceCode, uri);
             std::unique_ptr<ProgramNode> program = nullptr;
-            try
-            {
-                program = parser.ParseProgram();
-            } catch (...)
-            {
 
+            try {
+                program = parser.ParseProgram();
+            } catch (...) {
             }
 
             if (parser.HasErrors())
             {
                 for (const auto& err : parser.GetErrors())
                 {
-                    const auto loc = err.GetLocation();
-                    int line = std::max(1, loc.Line);
-                    int col = std::max(1, loc.Column);
+                    const auto loc = err.GetRange();
 
                     json diag;
-                    diag["line"] = line;
-                    diag["col"] = col;
-                    diag["length"] = 5;
+                    diag["line"] = loc.Start.Line;
+                    diag["col"] = loc.Start.Column;
+                    diag["length"] = loc.End.Column - loc.Start.Column + 1;
                     diag["message"] = err.what();
                     diag["severity"] = "Error";
 
                     diagnostics.push_back(diag);
                 }
-            } else if (program)
+            }
+
+            if (program)
             {
                 try
                 {
-                    m_Analyzer.Analyze(*program);
-                } catch (const std::exception& e)
+                    m_Analyzer.Analyze(*program, uri);
+                }
+                catch (const std::exception& e)
                 {
                     json diag;
                     diag["line"] = 1;
@@ -98,7 +102,8 @@ public:
                     diagnostics.push_back(diag);
                 }
             }
-        } catch (const std::exception& e)
+        }
+        catch (const std::exception& e)
         {
             json diag;
             diag["line"] = 1;
@@ -111,24 +116,42 @@ public:
         return diagnostics.dump();
     }
 
-    std::string Complete(std::string sourceCode, int line) {
+    std::string Complete(std::string sourceCode, int line, int col) {
         json items = json::array();
+        const std::string uri = "browser.aleng";
 
         try {
-            Parser parser(sourceCode, "browser.aleng");
-            auto program = parser.ParseProgram();
-            if (program) {
-                m_Analyzer.Analyze(*program);
+            Parser parser(sourceCode, uri);
+            if (auto program = parser.ParseProgram()) {
+                m_Analyzer.Analyze(*program, uri);
 
-                auto symbols = m_Analyzer.GetSymbolsAt(line);
-
-                for (const auto& sym : symbols) {
+                for (auto symbols = m_Analyzer.GetCompletions(uri, line, col); const auto& sym : symbols) {
                     json item;
-                    item["label"] = sym.Name;
-                    // Monaco Kinds: 1=Text, 2=Method, 3=Function, 6=Variable, 14=Keyword
-                    item["kind"] = (sym.Kind == "Function") ? 3 : 6;
-                    item["detail"] = (sym.Kind == "Function") ? "Function defined in code" : "Variable";
-                    item["insertText"] = sym.Name;
+                    item["label"] = sym->name;
+
+                    int kind = 6;
+                    std::string detail = "Variable";
+
+                    switch(sym->category) {
+                        case Symbol::Category::Function: kind = 3; detail = "Function"; break;
+                        case Symbol::Category::Class:    kind = 7; detail = "Class"; break;
+                        case Symbol::Category::Parameter: kind = 6; detail = "Parameter"; break;
+                        case Symbol::Category::Property: kind = 10; detail = "Property"; break;
+                        default: break;
+                    }
+
+                    if (sym->type) {
+                        detail += ": " + sym->type->ToString();
+                    }
+
+                    item["kind"] = kind;
+                    item["detail"] = detail;
+                    item["insertText"] = sym->name;
+
+                    if (!sym->documentation.empty()) {
+                         item["documentation"] = sym->documentation;
+                    }
+
                     items.push_back(item);
                 }
             }
@@ -148,17 +171,15 @@ public:
             });
         }
 
-        // Snippet: Função
         items.push_back({
             {"label", "Fn (Snippet)"},
             {"kind", 15}, // Snippet
-            {"detail", "Definição de Função"},
+            {"detail", "Function Definition"},
             {"insertText", "Fn ${1:name}(${2:args})\n\t$0\nEnd"},
-            {"insertTextRules", 4}, // 4 = InsertAsSnippet
-            {"documentation", "Cria um bloco de função"}
+            {"insertTextRules", 4},
+            {"documentation", "Creates a new function scope."}
         });
 
-        // Snippet: Loop For
         items.push_back({
             {"label", "For (Snippet)"},
             {"kind", 15},
@@ -166,7 +187,6 @@ public:
             {"insertTextRules", 4}
         });
 
-        // Built-ins
         std::vector<std::string> builtins = {"Print", "Append", "Len", "Pop", "ToNumber"};
         for(const auto& b : builtins) {
              items.push_back({
@@ -181,22 +201,38 @@ public:
         return items.dump();
     }
 
-    std::string GetSemanticTokens() {
-        return m_Analyzer.GetSemanticTokens().dump();
+    std::string GetHover(const std::string &sourceCode, const int line, const int col) {
+        const std::string uri = "browser.aleng";
+        try {
+            Parser parser(sourceCode, uri);
+            if (const auto program = parser.ParseProgram()) {
+                m_Analyzer.Analyze(*program, uri);
+                return m_Analyzer.GetHoverInfo(uri, line, col);
+            }
+        } catch (...) {}
+        return "";
+    }
+
+    [[nodiscard]] std::string GetSemanticTokens() const
+    {
+        const std::string uri = "browser.aleng";
+        return m_Analyzer.GetSemanticTokens(uri).dump();
     }
 
 private:
     std::unique_ptr<ModuleManager> m_ModuleManager;
     std::unique_ptr<Visitor> m_Visitor;
-    AlengLSP::Analyzer m_Analyzer;
+
+    Analyzer m_Analyzer;
 };
 
-EMSCRIPTEN_BINDINGS(aleng_module) {
-    // ReSharper disable once CppExpressionWithoutSideEffects
+EMSCRIPTEN_BINDINGS(aleng_module)
+{
     class_<AlengWasmInterface>("Aleng")
         .constructor<>()
         .function("execute", &AlengWasmInterface::Execute)
         .function("lint", &AlengWasmInterface::Lint)
         .function("complete", &AlengWasmInterface::Complete)
+        .function("getHover", &AlengWasmInterface::GetHover)
         .function("getSemanticTokens", &AlengWasmInterface::GetSemanticTokens);
 }

@@ -375,6 +375,7 @@ namespace Aleng
             auto paramToken = m_Tokens[m_Index];
             std::string paramName = paramToken.Value;
             std::optional<std::string> typeName;
+            SourceRange paramRange = paramToken.Range;
 
             m_Index++;
 
@@ -391,7 +392,7 @@ namespace Aleng
                 m_Index++;
             }
 
-            params.emplace_back(paramName, typeName, isVariadic);
+            params.emplace_back(paramName, typeName, paramRange, isVariadic);
             expectComma = true;
         }
 
@@ -422,7 +423,7 @@ namespace Aleng
         NodePtr body = std::make_unique<BlockNode>(std::move(bodyStatements), bodyStartLoc);
         m_Index++;
 
-        return std::make_unique<FunctionDefinitionNode>(std::make_optional(funcName), std::move(params), std::move(body), startToken.Range);
+        return std::make_unique<FunctionDefinitionNode>(std::make_optional(funcName), std::move(params), std::move(body), startToken.Range, m_Tokens[m_Index].Range);
     }
 
     NodePtr Parser::ParseFunctionLiteral()
@@ -479,6 +480,7 @@ namespace Aleng
             auto paramToken = m_Tokens[m_Index];
             std::string paramName = paramToken.Value;
             std::optional<std::string> typeName;
+            SourceRange paramRange = paramToken.Range;
 
             m_Index++;
 
@@ -494,7 +496,7 @@ namespace Aleng
                 m_Index++;
             }
 
-            params.emplace_back(paramName, typeName, isVariadic);
+            params.emplace_back(paramName, typeName, paramRange, isVariadic);
             expectComma = true;
         }
 
@@ -525,7 +527,12 @@ namespace Aleng
         NodePtr body = std::make_unique<BlockNode>(std::move(bodyStatements), bodyStartLoc);
         m_Index++;
 
-        return std::make_unique<FunctionDefinitionNode>(std::nullopt, std::move(params), std::move(body), startToken.Range);
+        SourceRange fullRange;
+        fullRange.Start = startToken.Range.Start;
+        fullRange.End = m_Tokens[m_Index - 1].Range.End;
+        fullRange.FilePath = startToken.Range.FilePath;
+
+        return std::make_unique<FunctionDefinitionNode>(std::nullopt, std::move(params), std::move(body), fullRange, m_Tokens[m_Index].Range);
     }
 
     NodePtr Parser::ParseBlock()
@@ -854,8 +861,9 @@ namespace Aleng
             m_Index++;
             if (m_Index < m_Tokens.size() && m_Tokens[m_Index].Type == TokenType::STRING)
             {
+                auto strRange = m_Tokens[m_Index].Range;
                 auto pathStr = m_Tokens[m_Index++].Value;
-                return std::make_unique<ImportModuleNode>(pathStr, token.Range);
+                return std::make_unique<ImportModuleNode>(pathStr, token.Range, strRange);
             }
             ReportError("Expected module name string after 'Import'.", token.Range);
             throw ParserSyncException();
@@ -896,7 +904,12 @@ namespace Aleng
 
                 m_Index++;
 
-                primaryExpr = std::make_unique<FunctionCallNode>(std::move(primaryExpr), std::move(args), token.Range);
+                SourceRange fullRange;
+                fullRange.Start = token.Range.Start;
+                fullRange.End = m_Tokens[m_Index - 1].Range.End;
+                fullRange.FilePath = token.Range.FilePath;
+
+                primaryExpr = std::make_unique<FunctionCallNode>(std::move(primaryExpr), std::move(args), fullRange);
             }
             else if (m_Tokens[m_Index].Type == TokenType::LBRACE)
             {

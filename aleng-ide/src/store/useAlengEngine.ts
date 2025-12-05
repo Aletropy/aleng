@@ -1,16 +1,13 @@
 import { create } from "zustand"
 import { useFileStore } from './useFileStore';
 
-// interface AlengWasmModule {
-//     Aleng: new() => AlengInstance
-// }
-
 interface AlengInstance
 {
     execute : (code : string) => string;
     lint : (code : string) => string;
     getSemanticTokens : () => string;
-    complete: (code: string, line: number) => string;
+    getHover: (code: string, line: number, col: number) => string;
+    complete: (code: string, line: number, col: number) => string;
     delete : () => void;
 }
 
@@ -22,7 +19,9 @@ interface EditorState {
     init: () => Promise<void>;
     run: () => void;
     lint: (code: string) => any[];
-    complete: (code: string, line: number) => any;
+    complete: (code: string, line: number, col: number) => any[];
+    getHover: (code: string, line: number, col: number) => string;
+    getSemanticTokens: (code: string) => number[];
     clearOutput: () => void;
 }
 
@@ -52,13 +51,10 @@ export const useAlengEngine = create<EditorState>((set, get) => ({
 
             try {
                 module.FS.mkdir('/virtual_fs');
-            } catch (e) {
-
-            }
+            } catch (e) {}
 
             const instance = new module.Aleng();
 
-            // Weird, but this way we can store the instance outside the zustand (For don't break the proxy)
             (get() as any).instance = instance;
             (get() as any).fsModule = module;
 
@@ -87,10 +83,7 @@ export const useAlengEngine = create<EditorState>((set, get) => ({
                 files.forEach(file => {
                     try {
                         fs.writeFile(`/virtual_fs/${file.name}`, file.content)
-                    } catch (err)
-                    {
-                        console.error(`Error writing to file ${file.name}`, err)
-                    }
+                    } catch (err) {}
                 })
 
                 const result = instance.execute(mainFile.content);
@@ -109,28 +102,34 @@ export const useAlengEngine = create<EditorState>((set, get) => ({
     lint: (code: string) => {
         const instance = (get() as any).instance as AlengInstance;
         if (!instance) return [];
-
         try {
-            const jsonStr = instance.lint(code);
-            return JSON.parse(jsonStr);
-        } catch (e) {
-            console.error("Lint error", e);
-            return [];
-        }
+            return JSON.parse(instance.lint(code));
+        } catch (e) { return []; }
     },
 
-    complete: (code: string, line: number) => {
+    complete: (code: string, line: number, col: number) => {
         const instance = (get() as any).instance as AlengInstance;
-        if (!instance) return { suggestions: [] };
-
+        if (!instance) return [];
         try {
-            const jsonStr = instance.complete(code, line);
-            const suggestions = JSON.parse(jsonStr);
-            return { suggestions };
-        } catch (e) {
-            console.error("Autocomplete error", e);
-            return { suggestions: [] };
-        }
+            return JSON.parse(instance.complete(code, line, col));
+        } catch (e) { return []; }
+    },
+
+    getHover: (code: string, line: number, col: number) => {
+        const instance = (get() as any).instance as AlengInstance;
+        if (!instance) return "";
+        try {
+            return instance.getHover(code, line, col);
+        } catch (e) { return ""; }
+    },
+
+    getSemanticTokens: (_code: string) => {
+        const instance = (get() as any).instance as AlengInstance;
+        if (!instance) return [];
+        try {
+            const raw = instance.getSemanticTokens();
+            return JSON.parse(raw);
+        } catch (e) { return []; }
     },
 
     clearOutput: () => set({ output: [] })

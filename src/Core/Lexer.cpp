@@ -9,8 +9,8 @@ namespace Aleng
     Lexer::Lexer(std::string input, std::string  filepath)
         : m_Input(std::move(input)), m_FilePath(std::move(filepath))
     {
-        m_Line = 0;
-        m_Column = 0;
+        m_Line = 1;
+        m_Column = 1;
         m_Index = 0;
     }
 
@@ -73,8 +73,8 @@ namespace Aleng
             return MakeToken(TokenType::END_OF_FILE, "", {m_Line, m_Column});
         }
 
-        SourceLocation startLoc = {m_Line, m_Column};
-        auto c = Peek();
+        const SourceLocation startLoc = {m_Line, m_Column};
+        const auto c = Peek();
 
         // Number verification
         if (std::isdigit(c))

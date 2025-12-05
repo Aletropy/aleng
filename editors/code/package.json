@@ -27,6 +27,18 @@
         ],
         "configuration": "./language-configuration.json"
       }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "aleng",
+        "scopes": {
+          "variable": ["variable.other.aleng"],
+          "function": ["entity.name.function.aleng"],
+          "parameter": ["variable.parameter.aleng"],
+          "property": ["variable.other.property.aleng"],
+          "class": ["entity.name.type.class.aleng"]
+        }
+      }
     ]
   },
   "scripts": {

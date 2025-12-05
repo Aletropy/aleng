@@ -1,3 +1,14 @@
 Import "core"
-Import "advanced_functions_data"
 Import "advanced_control_flow"
+Import "advanced_functions_data"
+
+
+Fn Foo(arg) 
+    foo = 2
+
+    
+
+    For i = 0..5
+
+    End
+End

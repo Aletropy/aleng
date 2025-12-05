@@ -88,11 +88,12 @@ namespace Aleng
     {
         std::string Name;
         std::optional<std::string> TypeName;
+        SourceRange Range;
         bool IsVariadic = false;
 
-        explicit Parameter(std::string name, std::optional<std::string> typeName = std::nullopt,
+        explicit Parameter(std::string name, std::optional<std::string> typeName = std::nullopt, SourceRange range = SourceRange(),
                            bool isVariadic = false)
-            : Name(std::move(name)), TypeName(std::move(typeName)), IsVariadic(isVariadic)
+            : Name(std::move(name)), TypeName(std::move(typeName)), Range(std::move(range)), IsVariadic(isVariadic)
         {
         }
     };
@@ -354,16 +355,18 @@ namespace Aleng
         std::optional<std::string> FunctionName;
         std::vector<Parameter> Parameters;
         NodePtr Body;
+        SourceRange EndLocation;
 
-        FunctionDefinitionNode(std::optional<std::string> funcName, std::vector<Parameter> params, NodePtr body, SourceRange loc)
-            : FunctionName(std::move(funcName)), Parameters(std::move(params)), Body(std::move(body))
+        FunctionDefinitionNode(std::optional<std::string> funcName, std::vector<Parameter> params, NodePtr body, SourceRange loc, SourceRange endLoc)
+            : FunctionName(std::move(funcName)), Parameters(std::move(params)), Body(std::move(body)), EndLocation(std::move(endLoc))
         {
             this->Location = std::move(loc);
         }
         FunctionDefinitionNode(const FunctionDefinitionNode &other)
             : FunctionName(other.FunctionName),
               Parameters(other.Parameters),
-              Body(other.Body ? other.Body->Clone() : nullptr)
+              Body(other.Body ? other.Body->Clone() : nullptr),
+              EndLocation(other.EndLocation)
         {
             this->Location = other.Location;
         }
@@ -608,15 +611,17 @@ namespace Aleng
     struct ImportModuleNode : ASTNode
     {
         std::string ModuleName;
+        SourceRange ModuleLocation;
 
-        ImportModuleNode(std::string moduleName, SourceRange loc)
-            : ModuleName(std::move(moduleName))
+        ImportModuleNode(std::string moduleName, SourceRange loc, SourceRange moduleLoc)
+            : ModuleName(std::move(moduleName)), ModuleLocation(std::move(moduleLoc))
         {
             this->Location = std::move(loc);
         }
         ImportModuleNode(const ImportModuleNode &other) : ModuleName(other.ModuleName)
         {
             this->Location = other.Location;
+            this->ModuleLocation = other.ModuleLocation;
         }
 
         void Print(std::ostream &os) const override
@@ -626,7 +631,7 @@ namespace Aleng
 
         [[nodiscard]] NodePtr Clone() const override
         {
-            return std::make_unique<ImportModuleNode>(ModuleName, Location);
+            return std::make_unique<ImportModuleNode>(ModuleName, Location, ModuleLocation);
         }
 
         EvaluatedValue Accept(Visitor &visitor) const override;

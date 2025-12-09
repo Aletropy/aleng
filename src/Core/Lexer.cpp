@@ -26,8 +26,15 @@ namespace Aleng
 
         if (c == '\n') {
             m_Line++;
-            m_Column = 0;
-        } else {
+            m_Column = 1;
+        }
+        else if ((c & 0xC0) == 0x80) {
+
+        }
+        else if ((c & 0xF8) == 0xF0) {
+            m_Column += 2;
+        }
+        else {
             m_Column++;
         }
         return c;
@@ -202,7 +209,9 @@ namespace Aleng
                 if (Peek(1) == '=') { Advance(); Advance(); return MakeToken(TokenType::MINOR_EQUAL, "<=", startLoc); }
                 Advance();
                 return MakeToken(TokenType::MINOR, "<", startLoc);
-            default: return MakeToken(TokenType::UNKNOWN, std::string(1, c), startLoc);;
+            default:
+                Advance();
+                return MakeToken(TokenType::UNKNOWN, std::string(1, c), startLoc);;
         }
 
         return MakeToken(TokenType::UNKNOWN, std::string(1, c), startLoc);

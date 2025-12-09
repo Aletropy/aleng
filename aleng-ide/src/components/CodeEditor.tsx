@@ -8,6 +8,11 @@ const BASIC_SYNTAX = {
             [/\b(If|Else|While|For|Fn|Return|Break|Continue|Module|Import|End)\b/, "keyword"],
             [/\b(True|False)\b/, "keyword.constant"],
             [/"/, { token: "string.quote", bracket: "@open", next: "@string" }],
+
+            [/[{}()\[\]]/, "delimiter.bracket"],
+            [/[.,;]/, "delimiter"],
+            [/[+\-*/%^=<>!&|]+/, "operator"],
+
             [/#.*$/, "comment"],
         ],
         string: [
@@ -49,9 +54,13 @@ export const CodeEditor = ({ initialCode, onChange }: Props) => {
                 { token: 'variable', foreground: 'E06C75' },
                 { token: 'function', foreground: '61AFEF' },
                 { token: 'parameter', foreground: 'D19A66', fontStyle: 'italic' },
+                { token: 'operator', foreground: 'C678DD' },
                 { token: 'string', foreground: '98C379' },
                 { token: 'number', foreground: 'D19A66' },
                 { token: 'comment', foreground: '5C6370' },
+                { token: 'delimiter', foreground: 'ABB2BF' },
+                { token: 'delimiter.bracket', foreground: 'E5C07B' },
+                { token: 'identifier', foreground: 'ABB2BF' },
             ],
             colors: {
                 'editor.background': '#09090b',

@@ -78,7 +78,7 @@ public:
                     json diag;
                     diag["line"] = loc.Start.Line;
                     diag["col"] = loc.Start.Column;
-                    diag["length"] = loc.End.Column - loc.Start.Column + 1;
+                    diag["length"] = loc.End.Column - loc.Start.Column;
                     diag["message"] = err.what();
                     diag["severity"] = "Error";
 

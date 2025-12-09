@@ -88,7 +88,9 @@ namespace AlengLSP
 
         if (const auto strNode = dynamic_cast<const Aleng::StringNode*>(node)) {
             if (strNode->Location.Start.Line == strNode->Location.End.Line) {
-                AddSpatialToken(strNode->Location, SemanticType::String, ctx);
+                auto loc = strNode->Location;
+                loc.End.Column -= 1;
+                AddSpatialToken(loc, SemanticType::String, ctx);
             }
         }
         else if (dynamic_cast<const Aleng::IntegerNode*>(node) || dynamic_cast<const Aleng::FloatNode*>(node)) {
@@ -518,7 +520,7 @@ namespace AlengLSP
                 length = static_cast<int>(entry.symbol->name.length());
             }
             else {
-                length = entry.range.End.Column - entry.range.Start.Column + 1;
+                length = entry.range.End.Column - entry.range.Start.Column;
             }
 
              if (length <= 0) length = 1;

@@ -12,9 +12,6 @@ dist
 dist-ssr
 *.local
 
-public/AlengWasm.js
-public/AlengWasm.wasm
-
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

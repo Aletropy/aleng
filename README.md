@@ -2,6 +2,8 @@
 
 Aleng is a dynamic, interpreted scripting language designed for simplicity and ease of use. It stands out for its clean syntax, robust error handling, and a modular architecture that facilitates extension and embedding in other projects.
 
+![](img/aleng-ide.gif)
+
 ## About The Project
 
 This repository contains the complete C++ source code for the Aleng interpreter, which includes the lexer, parser, visitor-based evaluator, and a module management system. Aleng is built with modern C++20 and CMake, ensuring a clean and portable codebase.

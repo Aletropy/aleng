@@ -1,20 +1,20 @@
 # Aleng Scripting Language
 
-Aleng is a dynamic, interpreted scripting language designed for simplicity and ease of use. It features a clean syntax, robust error handling, and a modular architecture that makes it easy to extend and embed.
+Aleng is a dynamic, interpreted scripting language designed for simplicity and ease of use. It stands out for its clean syntax, robust error handling, and a modular architecture that facilitates extension and embedding in other projects.
 
 ## About The Project
 
-This repository contains the complete C++ source code for the Aleng interpreter, including the lexer, parser, visitor-based evaluator, and a module management system. Aleng is built with modern C++20 and CMake, ensuring a clean and portable codebase.
+This repository contains the complete C++ source code for the Aleng interpreter, which includes the lexer, parser, visitor-based evaluator, and a module management system. Aleng is built with modern C++20 and CMake, ensuring a clean and portable codebase.
 
-**Core Features:**
+### Key Features
 
-*   **Simple & Expressive Syntax:** Aims for readability and ease of learning.
-*   **Dynamic Typing:** Variables can hold values of any supported type (Number, String, Boolean, List, Map, Function).
-*   **Rich Data Structures:** Built-in support for lists (arrays) and maps (dictionaries).
-*   **First-Class Functions:** Functions are treated as values; they can be stored in variables, passed as arguments, and returned from other functions, enabling functional programming patterns like closures.
-*   **Modular by Design:** Easily import custom Aleng scripts or native C++ functions as modules.
-*   **Built-in Testing Library:** Includes a standard library for writing and running unit tests.
-*   **Clear Error Reporting:** Provides formatted, context-aware error messages with file paths, line numbers, and column numbers to simplify debugging.
+*   **Simple & Expressive Syntax:** Focused on readability and ease of learning.
+*   **Dynamic Typing:** Variables can store values of any supported type: **Number**, **String**, **Boolean**, **List**, **Map**, and **Function**.
+*   **First-Class Functions:** Functions are treated as values, allowing for functional programming patterns like closures and variadic functions (which accept a variable number of arguments).
+*   **Rich Data Structures:** Native support for **Lists** (dynamic arrays) and **Maps** (dictionaries/objects), with support for nested property access.
+*   **Modularity:** Easy import of custom Aleng scripts or native C++ functions as modules.
+*   **Integrated Testing Library:** Includes a standard library for writing and running unit tests.
+*   **Clear Error Reporting:** Provides formatted, context-aware error messages, including file paths, line numbers, and column numbers to simplify debugging.
 
 ## Getting Started
 
@@ -30,72 +30,141 @@ To get the Aleng interpreter up and running on your local machine, follow the bu
 ### Building from Source
 
 1.  **Clone the repository:**
-    ```sh
-    git clone https://github.com/your_username/aleng.git
+    
+    ```shell
+    git clone https://github.com/Aletropy/aleng.git
     cd aleng
     ```
-
+    
 2.  **Configure the project with CMake:**
-    ```sh
+    
+    ```shell
     cmake -B build
     ```
-
+    
 3.  **Build the project:**
-    ```sh
+    
+    ```shell
     cmake --build build
     ```
-    This will create an executable named `Aleng` (or `Aleng.exe` on Windows) inside the `build` directory.
+    
+    This will create an executable named `AlengCLI` (or `AlengCLI.exe` on Windows) inside the `build` directory.
 
 ### Running Aleng
 
 Once built, you can run Aleng scripts in two ways:
 
-1.  **Running a file:**
-    The interpreter will automatically look for and execute a `main.aleng` file in the current directory or a specified path.
-    ```sh
-    ./build/Aleng /path/to/your/project
+1.  **Running a file:** The interpreter will automatically look for and execute a `main.aleng` file in the current directory or a specified path.
+    
+    ```shell
+    ./build/AlengCLI /path/to/your/project
     ```
-
-2.  **Interactive Mode (REPL):**
-    Launch the Read-Eval-Print Loop (REPL) to experiment with Aleng code interactively.
-    ```sh
-    ./build/Aleng --repl
+    
+2.  **Interactive Mode (REPL):** Launch the Read-Eval-Print Loop (REPL) to experiment with Aleng code interactively.
+    
+    ```shell
+    ./build/AlengCLI --repl
     ```
+    
     To exit the REPL, type `.exit` and press Enter.
 
 ## Language Tour
 
-Here is a brief overview of the Aleng language syntax and features.
+Here is an overview of the Aleng language syntax and features, based on the code example and project documentation.
 
 ### Variables and Types
 
-Variables are dynamically typed. Use the assignment operator (`=`) to declare and initialize them.
+Variables are dynamically typed. The assignment operator (`=`) is used to declare and initialize them.
+
+| Type | Example | Description |
+| :--- | :--- | :--- |
+| **Number** | `pi = 3.14159` | All numbers are internally floating-point. |
+| **String** | `name = "Aleng"` | Character strings. |
+| **Boolean** | `is_active = True` | Logical values `True` or `False`. |
+| **List** | `items = [1, "a", True]` | Dynamic arrays, accessed by index (0-based). |
+| **Map** | `person = { "name": "Alex", "age": 30 }` | Key-value pairs (dictionaries/objects). |
+
+### Data Structures
+
+#### Lists
+
+Access and modification of elements are done by zero-based indexing. The built-in function `Append` can be used to add elements.
 
 ```aleng
-# Numbers (all numbers are floating-point internally)
-age = 25
-pi = 3.14159
+numbers = [10, 20, 30]
+Print(numbers[1]) # Output: 20
 
-# Strings
-greeting = "Hello, Aleng!"
+Append(numbers, 40) # Adds 40
+Print(numbers.length) # Output: 4
+```
 
-# Booleans
-is_active = True
-is_admin = False
+#### Maps (Maps/Objects)
 
-# Lists (dynamic arrays)
-items = [1, "apple", True]
+Access and modification of elements can be done using dot notation or string indexing.
 
-# Maps (key-value pairs)
+```aleng
+user = { "name": "Sam", "status": "active" }
+Print(user.name) # Output: Sam
+
+user.status = "inactive"
+user["new_prop"] = 123
+
+# Maps can simulate objects with methods
+Fn get_greeting(person_obj)
+    Return "Hello, " + person_obj.name
+End
+
 person = {
     "name": "Alex",
-    "age": 30
+    "greet": get_greeting
 }
+
+message = person.greet(person)
+Print(message) # Output: Hello, Alex
+```
+
+### Functions
+
+Functions are declared with the `Fn` keyword and can use the `Return` keyword to return a value.
+
+#### Variadic Functions
+
+Functions can accept a variable number of arguments by prefixing the parameter name with the `$` symbol. This special parameter collects all additional arguments into a **List**.
+
+```aleng
+Fn sum_all($numbers)
+    total = 0
+    For num in numbers
+        total = total + num
+    End
+    Return total
+End
+
+Print(sum_all(1, 2, 3)) # Output: 6
+Print(sum_all()) # Output: 0
+```
+
+#### Recursive Functions
+
+Aleng supports recursive function calls, as demonstrated in the factorial calculation example.
+
+```aleng
+Fn factorial(n)
+    If n <= 1
+        Return 1
+    End
+    Return n * factorial(n - 1)
+End
+
+Print(factorial(5)) # Output: 120
 ```
 
 ### Control Flow
 
-#### If/Else Statements
+#### Conditionals (If/Else)
+
+Conditional structures are defined with `If`, `Else` (optional), and terminated with `End`.
+
 ```aleng
 If age >= 18
     Print("You are an adult.")
@@ -104,89 +173,19 @@ Else
 End
 ```
 
-#### Loops
-Aleng supports `For` and `While` loops.
+#### Loops (For/While)
 
-```aleng
-# Numeric For loop (inclusive range)
-sum = 0
-For i = 1 .. 5
-    sum = sum + i
-End
-Print("Sum from 1 to 5 is: " + sum) # Output: 15
+Aleng supports `For` loops for numeric iteration and over collections, and `While` loops.
 
-# For loop with a custom step
-For i = 10 .. 0 step -2
-    Print(i) # Output: 10, 8, 6, 4, 2, 0
-End
-
-# For..in loop for iterating over collections
-fruits = ["apple", "banana", "cherry"]
-For fruit in fruits
-    Print(fruit)
-End
-
-# While loop
-counter = 0
-While counter < 3
-    Print("Iteration: " + counter)
-    counter = counter + 1
-End
-```
-
-### Functions
-
-Functions are first-class citizens. They can be named or anonymous (lambdas).
-
-```aleng
-# Defining a named function
-Fn greet(name)
-    Return "Hello, " + name + "!"
-End
-Print(greet("World")) # Output: Hello, World!
-
-# Closures: Inner functions capture their surrounding environment
-Fn make_adder(x)
-    Fn inner(y)
-        Return x + y
-    End
-    Return inner
-End
-
-add_five = make_adder(5)
-Print(add_five(3)) # Output: 8.0
-```
-
-### Data Structures
-
-#### Lists
-Access and modify list elements using zero-based indexing.
-
-```aleng
-numbers =
-Print(numbers) # Output: 20
-
-numbers = 25
-Append(numbers, 40) # Built-in function to add elements
-Print(numbers) # Output:
-Print(numbers.length) # Output: 4
-```
-
-#### Maps
-Access and modify map elements using dot notation or string indexing.
-
-```aleng
-user = { "name": "Sam", "status": "active" }
-Print(user.name) # Output: Sam
-
-user.status = "inactive"
-user["new_prop"] = 123
-Print(user.status) # Output: inactive
-```
+| Loop Type | Syntax | Example |
+| :--- | :--- | :--- |
+| **Numeric For** | `For var = start .. end [step step_value]` | `For i = 1 .. 5` |
+| **Collection For** | `For item in collection` | `For fruit in fruits` |
+| **While** | `While condition` | `While counter < 3` |
 
 ### Modules
 
-Use the `Import` keyword to load other `.aleng` files or native libraries as modules. The result of an import is a map containing the module's exported variables and functions.
+Use the `Import` keyword to load modules. The result is a **Map** containing the module's exported variables and functions.
 
 ```aleng
 # In 'my_module.aleng':
@@ -201,9 +200,9 @@ MyModule.PublicFunc()
 Print("PI is: " + MyModule.PI)
 ```
 
-### Testing
+### Unit Tests
 
-Aleng includes a built-in test library for writing unit tests.
+The built-in testing library (`std/test`) allows for the creation of test suites and assertions.
 
 ```aleng
 Test = Import "std/test"
@@ -214,33 +213,21 @@ Fn test_addition()
 End
 CoreSuite.Add("should perform basic addition", test_addition)
 
-Fn test_errors()
-    Test.Assert.Throws(
-        Fn() x = 1 / 0 End,
-        "Division by zero should raise an error"
-    )
-End
-CoreSuite.Add("should handle runtime errors", test_errors)
-
 CoreSuite.Run()
 ```
 
----
-
 ## Roadmap
 
-This project is actively under development. Here is a look at the planned features and improvements for the future:
+The project is under active development, with plans to expand features and improve performance:
 
 *   **Phase 1: Core Language and Tooling**
-    *   [ ] **Web Playground:** Develop a web-based environment (using WebAssembly) to allow users to write and run Aleng code directly in their browser.
-    *   [ ] **Language Server Protocol (LSP):** Implement an LSP for Aleng to provide features like autocomplete, syntax highlighting, and error checking in modern code editors like VS Code.
-    *   [ ] **Expanded Standard Library:** Add more built-in modules for file I/O, string manipulation, and system interaction.
-
+    *   Web Playground (using WebAssembly).
+    *   Language Server Protocol (LSP) for code editors.
+    *   Standard Library Expansion (File I/O, string manipulation).
 *   **Phase 2: Advanced Language Features**
-    *   [ ] **Object-Oriented Programming (OOP):** Introduce classes, methods, and inheritance to provide a more structured way of organizing code.
-    *   [ ] **Concurrency Model:** Explore adding support for lightweight threads or async/await syntax.
-
+    *   Object-Oriented Programming (Classes, Methods, Inheritance).
+    *   Concurrency Model (Lightweight threads or async/await syntax).
 *   **Phase 3: Quality and Performance**
-    *   [ ] **Google Test Integration:** Integrate Google Test for more rigorous, low-level testing of the C++ interpreter core.
-    *   [ ] **Performance Benchmarking:** Create a suite of benchmarks to identify and optimize performance bottlenecks in the interpreter.
-    *   [ ] **JIT Compilation:** Investigate the possibility of adding a Just-In-Time (JIT) compiler to improve execution speed for performance-critical code.
+    *   Google Test Integration for low-level testing.
+    *   Performance Benchmarking and optimization.
+    *   Investigation of Just-In-Time (JIT) compilation.

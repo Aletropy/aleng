@@ -1,6 +1,6 @@
 # Aleng Scripting Language
 
-Aleng is a dynamic, interpreted scripting language designed for simplicity and ease of use. It stands out for its clean syntax, robust error handling, and a modular architecture that facilitates extension and embedding in other projects.
+Aleng is a custom interpreted language with a modular architecture. It includes a handwritten lexer/parser (no generator tools used), a Virtual Machine, and full support for WASM embedding. Designed for high portability and system scripting.
 
 ![](img/aleng-ide.gif)
 
